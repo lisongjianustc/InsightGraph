@@ -11,13 +11,17 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.6.7",
+    "dompurify": "^3.3.3",
     "echarts": "^6.0.0",
     "element-plus": "^2.5.6",
+    "marked": "^17.0.5",
     "vue": "^3.4.19",
     "vue-router": "^4.2.5"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/echarts": "^4.9.22",
+    "@types/marked": "^5.0.2",
     "@vitejs/plugin-vue": "^5.0.4",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, BackgroundTasks, Depends, HTTPException, File, UploadFile, Form
+from fastapi.responses import StreamingResponse
 import logging
 from sqlalchemy.orm import Session
 from typing import List
@@ -8,7 +9,7 @@ from app.core.database import engine, Base, get_db
 from app.models.feed import FeedItem
 from app.models.graph import GraphNode, GraphEdge
 from app.models.capsule import Capsule
-from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequest, ChatRequest, ChatHistorySync
+from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequest, ChatRequest, ChatHistorySync, GlobalChatRequest
 from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
@@ -88,6 +89,16 @@ async def list_feeds(skip: int = 0, limit: int = 50, is_saved_to_kb: bool = None
     
     feeds = query.order_by(FeedItem.created_at.desc()).offset(skip).limit(limit).all()
     return feeds
+
+@app.post("/api/chat/global")
+async def global_chat(req: GlobalChatRequest):
+    """
+    提供给前端跨文档全局聊天的流式接口
+    """
+    return StreamingResponse(
+        dify_client.global_chat_stream(req.query, req.conversation_id),
+        media_type="text/event-stream"
+    )
 
 @app.post("/api/feed/{feed_id}/save_to_kb")
 async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

@@ -40,10 +40,12 @@ const route = useRoute()
         </router-link>
         
         <!-- 预留其他菜单 -->
-        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
+        <router-link to="/chat" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+          :class="route.path === '/chat' ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
           <el-icon><ChatDotRound /></el-icon>
           全局问答 (Chat)
-        </a>
+        </router-link>
         <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
           <el-icon><Setting /></el-icon>
           系统设置
@@ -67,11 +69,12 @@ const route = useRoute()
           <template v-if="route.name === 'feed'">知识发现</template>
           <template v-else-if="route.name === 'capsule'">闪念胶囊</template>
           <template v-else-if="route.name === 'graph'">知识图谱</template>
+          <template v-else-if="route.name === 'chat'">全局问答</template>
           <template v-else>InsightGraph</template>
         </h2>
       </header>
       
-      <div class="p-8 flex-1 flex flex-col" :class="{'!p-0': route.name === 'capsule' || route.name === 'graph'}">
+      <div class="p-8 flex-1 flex flex-col" :class="{'!p-0': route.name === 'capsule' || route.name === 'graph' || route.name === 'chat'}">
         <router-view />
       </div>
     </main>

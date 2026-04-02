@@ -3,6 +3,7 @@ import MainLayout from '../components/MainLayout.vue'
 import FeedView from '../views/FeedView.vue'
 import CapsuleView from '../views/CapsuleView.vue'
 import GraphView from '../views/GraphView.vue'
+import GlobalChatView from '../views/GlobalChatView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -25,6 +26,11 @@ const router = createRouter({
           path: 'graph',
           name: 'graph',
           component: GraphView
+        },
+        {
+          path: 'chat',
+          name: 'chat',
+          component: GlobalChatView
         }
       ]
     }

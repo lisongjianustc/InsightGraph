@@ -22,6 +22,9 @@ class DifyService:
         # 获取用于文件解析和 OCR 提取的工作流 API Key
         self.ocr_workflow_api_key = os.getenv("DIFY_OCR_WORKFLOW_API_KEY", "")
         
+        # 获取全局问答应用 API Key
+        self.global_chat_api_key = os.getenv("DIFY_GLOBAL_CHAT_API_KEY", "")
+        
     async def save_text_to_dataset(self, text_content: str, title: Optional[str] = None, kb_type: str = "default") -> Dict[str, Any]:
         """
         将文本内容保存到 Dify 的知识库中
@@ -333,6 +336,42 @@ class DifyService:
         except Exception as e:
             logger.error(f"Failed to extract keywords: {str(e)}")
             return []
+
+    async def global_chat_stream(self, query: str, conversation_id: str = ""):
+        """
+        调用 Dify 的流式输出（Streaming）实现全局知识库问答
+        """
+        if not self.global_chat_api_key:
+            yield 'data: {"event": "message", "answer": "**【系统提示】** 未配置 `DIFY_GLOBAL_CHAT_API_KEY`，目前无法调用全局问答大模型。请在 `.env` 中配置。"}\n\n'
+            yield 'data: {"event": "message_end"}\n\n'
+            return
+
+        endpoint = f"{self.api_url}/chat-messages"
+        headers = {
+            "Authorization": f"Bearer {self.global_chat_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "inputs": {},
+            "query": query,
+            "response_mode": "streaming",
+            "user": "insight-graph-user"
+        }
+        
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
+            
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream("POST", endpoint, json=payload, headers=headers, timeout=120.0) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_text():
+                        yield chunk
+        except Exception as e:
+            logger.error(f"Failed to connect to Dify Global Chat API: {str(e)}")
+            yield f'data: {{"event": "message", "answer": "\\n\\n**[连接错误]**：{str(e)}"}}\n\n'
+            yield 'data: {"event": "message_end"}\n\n'
 
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
