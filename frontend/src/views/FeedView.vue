@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled } from '@element-plus/icons-vue'
 
 const API_BASE = '/api'
 
@@ -335,17 +335,18 @@ const openDeepReadDrawer = async (feed: FeedItem) => {
   }
 }
 
-const sendChatMessage = async () => {
-  if (!chatInput.value.trim() || !currentDeepFeed.value || chatLoading.value) return
+const sendChatMessage = async (presetQuery?: string) => {
+  const userMsg = typeof presetQuery === 'string' ? presetQuery : chatInput.value.trim()
+  if (!userMsg || !currentDeepFeed.value || chatLoading.value) return
   
-  const userMsg = chatInput.value.trim()
-  chatInput.value = ''
-  
-  chatMessages.value.push({
-    id: Date.now().toString() + '_user',
-    role: 'user',
-    content: userMsg
-  })
+  if (typeof presetQuery !== 'string') {
+    chatInput.value = ''
+    chatMessages.value.push({
+      id: Date.now().toString() + '_user',
+      role: 'user',
+      content: userMsg
+    })
+  }
   
   chatLoading.value = true
   try {
@@ -376,6 +377,107 @@ const sendChatMessage = async () => {
     })
   } finally {
     chatLoading.value = false
+  }
+}
+
+const deleteChatMessage = async (msgId: string) => {
+  chatMessages.value = chatMessages.value.filter(m => m.id !== msgId)
+  await syncChatHistory()
+  ElMessage.success('消息已删除')
+}
+
+const regenerateResponse = async (msgId: string) => {
+  const index = chatMessages.value.findIndex(m => m.id === msgId)
+  if (index === -1) return
+  
+  let userMsg = ''
+  for (let i = index - 1; i >= 0; i--) {
+    if (chatMessages.value[i].role === 'user') {
+      userMsg = chatMessages.value[i].content
+      break
+    }
+  }
+  
+  if (!userMsg) {
+    ElMessage.warning('找不到对应的用户提问')
+    return
+  }
+  
+  chatMessages.value.splice(index, 1)
+  await sendChatMessage(userMsg)
+}
+
+const clearAllChatHistory = () => {
+  if (!currentDeepFeed.value) return
+  chatMessages.value = [{
+    id: Date.now().toString(),
+    role: 'assistant',
+    content: `你好！我是针对《${currentDeepFeed.value.title}》的精读助手。你可以随时向我提问关于这篇文档的任何问题。`
+  }]
+  conversationId.value = ''
+  syncChatHistory().then(() => {
+    ElMessage.success('聊天记录已清空')
+  })
+}
+
+const exportChatHistory = () => {
+  if (!currentDeepFeed.value || chatMessages.value.length === 0) return
+  
+  let mdContent = `# 精读对话记录：${currentDeepFeed.value.title}\n\n`
+  chatMessages.value.forEach(msg => {
+    if (msg.role === 'assistant' && msg.content.includes('你好！我是针对')) return
+    mdContent += `### ${msg.role === 'user' ? '🧑‍💻 我' : '🤖 精读助手'}\n${msg.content}\n\n---\n\n`
+  })
+  
+  const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', `精读记录_${currentDeepFeed.value.title.slice(0, 15)}.md`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+const batchSaveChatToKb = async () => {
+  if (!currentDeepFeed.value) return
+  
+  const assistantMsgs = chatMessages.value.filter(m => m.role === 'assistant' && !m.content.includes('你好！我是针对') && !m.saved)
+  if (assistantMsgs.length === 0) {
+    ElMessage.info('没有新的助手消息需要保存')
+    return
+  }
+  
+  const loading = ElMessage({
+    message: '正在批量存入精读知识库...',
+    type: 'info',
+    duration: 0
+  })
+  
+  try {
+    let combinedContent = `针对《${currentDeepFeed.value.title}》的精读对话合集：\n\n`
+    assistantMsgs.forEach((msg, idx) => {
+      combinedContent += `**AI 回答 ${idx + 1}：**\n${msg.content}\n\n---\n\n`
+    })
+    
+    const title = `[精读合集] ${currentDeepFeed.value.title.slice(0, 30)}...`
+    
+    await axios.post(`${API_BASE}/knowledge/save`, {
+      title: title,
+      content: combinedContent,
+      kb_type: 'deep',
+      source_url: currentDeepFeed.value.url
+    })
+    
+    assistantMsgs.forEach(msg => { msg.saved = true })
+    await syncChatHistory()
+    
+    loading.close()
+    ElMessage.success('批量入库成功！')
+  } catch (error) {
+    loading.close()
+    ElMessage.error('批量入库失败')
   }
 }
 
@@ -708,9 +810,35 @@ onMounted(() => {
             <div class="font-bold text-gray-700 flex items-center gap-2">
               <el-icon><ChatDotRound /></el-icon> 精读助手
             </div>
-            <el-button link @click="isChatFloatingVisible = false">
-              <el-icon class="text-xl"><Close /></el-icon>
-            </el-button>
+            <div class="flex items-center gap-2">
+              <el-dropdown trigger="click">
+                <el-button link type="info">
+                  <el-icon class="text-lg"><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item @click="batchSaveChatToKb"><el-icon><DocumentAdd /></el-icon> 批量入库</el-dropdown-item>
+                    <el-dropdown-item @click="exportChatHistory"><el-icon><Download /></el-icon> 导出记录</el-dropdown-item>
+                    <el-dropdown-item divided @click="clearAllChatHistory" class="text-red-500"><el-icon><Delete /></el-icon> 清空对话</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button link @click="isChatFloatingVisible = false">
+                <el-icon class="text-xl"><Close /></el-icon>
+              </el-button>
+            </div>
+          </div>
+          
+          <!-- 分栏模式的 Header -->
+          <div v-if="deepLayoutMode === 'split'" class="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+            <div class="font-bold text-gray-700 flex items-center gap-2">
+              <el-icon><ChatDotRound /></el-icon> 精读助手
+            </div>
+            <div class="flex items-center gap-2">
+              <el-button size="small" @click="batchSaveChatToKb"><el-icon><DocumentAdd /></el-icon> 批量入库</el-button>
+              <el-button size="small" @click="exportChatHistory"><el-icon><Download /></el-icon> 导出</el-button>
+              <el-button size="small" type="danger" plain @click="clearAllChatHistory"><el-icon><Delete /></el-icon> 清空</el-button>
+            </div>
           </div>
 
           <!-- 聊天记录区 -->
@@ -740,16 +868,36 @@ onMounted(() => {
                       </div>
                     </div>
                     
-                    <!-- 助手消息的入库按钮 -->
-                    <div v-if="msg.role === 'assistant'" class="mt-2">
+                    <!-- 消息操作按钮 -->
+                    <div class="mt-2 flex items-center gap-2">
+                      <template v-if="msg.role === 'assistant'">
+                        <el-button 
+                          size="small" 
+                          text 
+                          :type="msg.saved ? 'success' : 'primary'"
+                          :disabled="msg.saved"
+                          @click="saveChatMsgToKb(msg)">
+                          <el-icon class="mr-1"><DocumentCopy /></el-icon>
+                          {{ msg.saved ? '已存入知识库' : '存入精读库' }}
+                        </el-button>
+                        
+                        <el-button 
+                          size="small" 
+                          text 
+                          type="info"
+                          @click="regenerateResponse(msg.id)">
+                          <el-icon class="mr-1"><Refresh /></el-icon>
+                          重新生成
+                        </el-button>
+                      </template>
+                      
                       <el-button 
                         size="small" 
                         text 
-                        :type="msg.saved ? 'success' : 'primary'"
-                        :disabled="msg.saved"
-                        @click="saveChatMsgToKb(msg)">
-                        <el-icon class="mr-1"><DocumentCopy /></el-icon>
-                        {{ msg.saved ? '已存入知识库' : '存入精读库' }}
+                        type="danger"
+                        class="!px-2"
+                        @click="deleteChatMessage(msg.id)">
+                        <el-icon><Delete /></el-icon>
                       </el-button>
                     </div>
                   </div>
