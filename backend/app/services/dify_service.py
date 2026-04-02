@@ -286,6 +286,54 @@ class DifyService:
             logger.error(f"Failed to process image OCR via Dify: {str(e)}")
             return f"处理图片 OCR 失败：{str(e)}"
 
+    async def extract_keywords(self, content: str, title: str) -> list[str]:
+        """
+        调用 Dify 大模型提取内容的关键词/实体，用于构建知识图谱的标签节点
+        """
+        if not self.reader_api_key:
+            return []
+
+        endpoint = f"{self.api_url}/chat-messages"
+        headers = {
+            "Authorization": f"Bearer {self.reader_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        truncated_content = content[:5000] + "..." if len(content) > 5000 else content
+        query = (
+            f"请从以下文本中提取 3-5 个最重要的关键词或实体（如技术名词、人名、机构、核心概念）。"
+            f"请只返回用逗号分隔的关键词列表，不要包含任何其他说明文字。\n\n"
+            f"标题：{title}\n"
+            f"内容：{truncated_content}"
+        )
+        
+        payload = {
+            "inputs": {},
+            "query": query,
+            "response_mode": "blocking",
+            "user": "insight-graph-user"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                result = response.json()
+                answer = result.get("answer", "")
+                # 清洗并拆分关键词
+                keywords = [k.strip() for k in answer.replace('，', ',').split(',') if k.strip()]
+                # 过滤掉过长的异常关键词
+                keywords = [k for k in keywords if len(k) <= 30][:5]
+                return keywords
+        except Exception as e:
+            logger.error(f"Failed to extract keywords: {str(e)}")
+            return []
+
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
         根据不同的分类获取对应的 Dataset ID。

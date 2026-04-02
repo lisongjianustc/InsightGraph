@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { Connection, Document, ChatDotRound, Setting, MagicStick } from '@element-plus/icons-vue'
+import { Connection, Document, ChatDotRound, Setting, MagicStick, Share } from '@element-plus/icons-vue'
 
 const route = useRoute()
 </script>
@@ -31,6 +31,13 @@ const route = useRoute()
           <el-icon><MagicStick /></el-icon>
           闪念胶囊 (Capsule)
         </router-link>
+
+        <router-link to="/graph" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+          :class="route.path === '/graph' ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
+          <el-icon><Share /></el-icon>
+          知识图谱 (Graph)
+        </router-link>
         
         <!-- 预留其他菜单 -->
         <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
@@ -59,11 +66,12 @@ const route = useRoute()
         <h2 class="text-lg font-medium text-gray-800">
           <template v-if="route.name === 'feed'">知识发现</template>
           <template v-else-if="route.name === 'capsule'">闪念胶囊</template>
+          <template v-else-if="route.name === 'graph'">知识图谱</template>
           <template v-else>InsightGraph</template>
         </h2>
       </header>
       
-      <div class="p-8 flex-1" :class="{'!p-0': route.name === 'capsule'}">
+      <div class="p-8 flex-1 flex flex-col" :class="{'!p-0': route.name === 'capsule' || route.name === 'graph'}">
         <router-view />
       </div>
     </main>

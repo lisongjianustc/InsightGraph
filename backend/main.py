@@ -13,6 +13,8 @@ from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
 from app.utils.file_parser import parse_file_to_text
+from app.routers import graph
+from app.services.graph_builder import build_graph_edges_for_node
 
 # 自动创建数据库表（生产环境建议使用 Alembic 迁移）
 Base.metadata.create_all(bind=engine)
@@ -40,6 +42,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(graph.router)
 
 # 确保存放 PDF 的目录存在
 os.makedirs("data/pdfs", exist_ok=True)
@@ -133,6 +137,9 @@ async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: S
     # 更新数据库状态
     feed_item.is_saved_to_kb = True
     db.commit()
+    db.refresh(node)
+    
+    background_tasks.add_task(build_graph_edges_for_node, db, node.id)
     
     return {"status": "processing", "message": "Sent to Dify for embedding."}
 
@@ -175,6 +182,10 @@ async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: Backg
             db.add(edge)
             
     db.commit()
+    db.refresh(node)
+    
+    background_tasks.add_task(build_graph_edges_for_node, db, node.id)
+    
     return {"status": "success", "message": f"Saved {req.kb_type} note successfully."}
 
 @app.post("/api/reader/skim")
@@ -379,13 +390,14 @@ async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTas
     db.add(capsule_node)
     db.commit()
 
-    # 3. 异步发送给 Dify 向量化
+    # 3. 异步发送给 Dify 向量化和图谱关联
     background_tasks.add_task(
         dify_client.save_text_to_dataset,
         text_content=capsule.content,
         title=capsule.title or f"[闪念胶囊] #{new_capsule.id}",
         kb_type="capsule"
     )
+    background_tasks.add_task(build_graph_edges_for_node, db, capsule_node.id)
 
     return {"status": "success", "id": new_capsule.id, "message": "Capsule created and sent to Dify."}
 
@@ -447,6 +459,7 @@ async def upload_capsule_file(
         title=title,
         kb_type="capsule"
     )
+    background_tasks.add_task(build_graph_edges_for_node, db, capsule_node.id)
 
     return {"status": "success", "id": new_capsule.id, "message": f"文件 {filename} 已成功解析并入库。"}
 
