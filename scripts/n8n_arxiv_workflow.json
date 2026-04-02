@@ -1,0 +1,168 @@
+{
+  "name": "ArXiv Fetcher (Real Data)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e1f1c990-2c19-4b68-b788-1234567890ab",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submittedDate&sortOrder=descending&max_results=5"
+      },
+      "id": "b2f1c990-2c19-4b68-b788-1234567890ab",
+      "name": "Fetch ArXiv API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataPropertyName": "data",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "entry > title",
+              "returnValue": "text",
+              "returnArray": true
+            },
+            {
+              "key": "summary",
+              "cssSelector": "entry > summary",
+              "returnValue": "text",
+              "returnArray": true
+            },
+            {
+              "key": "link",
+              "cssSelector": "entry > id",
+              "returnValue": "text",
+              "returnArray": true
+            }
+          ]
+        }
+      },
+      "id": "c3f1c990-2c19-4b68-b788-1234567890ab",
+      "name": "HTML Extract (XML)",
+      "type": "n8n-nodes-base.htmlExtract",
+      "typeVersion": 1,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const titles = $input.item.json.title || [];\nconst summaries = $input.item.json.summary || [];\nconst links = $input.item.json.link || [];\n\nlet results = [];\nfor (let i = 0; i < titles.length; i++) {\n  results.push({\n    json: {\n      source: 'arxiv',\n      title: '[ArXiv] ' + titles[i].replace(/\\n/g, ' '),\n      content: summaries[i].replace(/\\n/g, ' '),\n      url: links[i],\n      raw_data: { categories: ['cs.AI'] }\n    }\n  });\n}\nreturn results;"
+      },
+      "id": "d4f1c990-2c19-4b68-b788-1234567890ab",
+      "name": "Format Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://insight_backend:8000/api/feed/incoming",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "source",
+              "value": "={{ $json.source }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "url",
+              "value": "={{ $json.url }}"
+            },
+            {
+              "name": "raw_data",
+              "value": "={{ $json.raw_data }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5f1c990-2c19-4b68-b788-1234567890ab",
+      "name": "Push to FastAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1080,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch ArXiv API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch ArXiv API": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract (XML)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract (XML)": {
+      "main": [
+        [
+          {
+            "node": "Format Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data": {
+      "main": [
+        [
+          {
+            "node": "Push to FastAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "f6f1c990-2c19-4b68-b788-1234567890ab"
+}

@@ -1,0 +1,387 @@
+from fastapi import FastAPI, Request, BackgroundTasks, Depends, HTTPException
+import logging
+from sqlalchemy.orm import Session
+from typing import List
+
+from app.services.dify_service import dify_client
+from app.core.database import engine, Base, get_db
+from app.models.feed import FeedItem
+from app.models.graph import GraphNode, GraphEdge
+from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequest, ChatRequest, ChatHistorySync
+from app.utils.pdf_parser import fetch_arxiv_pdf_text
+from app.utils.pdf_translator import translate_pdf_with_pdf2zh
+
+# 自动创建数据库表（生产环境建议使用 Alembic 迁移）
+Base.metadata.create_all(bind=engine)
+
+# 配置基础日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+from fastapi.middleware.cors import CORSMiddleware
+
+from fastapi.staticfiles import StaticFiles
+import os
+
+app = FastAPI(
+    title="InsightGraph API",
+    description="Knowledge Base System Core Backend for local Web Admin, n8n, and Dify integrations.",
+    version="0.1.0"
+)
+
+# 允许前端跨域请求
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # 生产环境请指定前端 URL，如 http://localhost:5173
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 确保存放 PDF 的目录存在
+os.makedirs("data/pdfs", exist_ok=True)
+app.mount("/static/pdfs", StaticFiles(directory="data/pdfs"), name="pdfs")
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to InsightGraph Backend API!"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# ----------------- Feed / 资讯流管理接口 -----------------
+
+@app.post("/api/feed/incoming", response_model=FeedItemResponse)
+async def receive_incoming_feed(item: FeedItemCreate, db: Session = Depends(get_db)):
+    """
+    接收来自 n8n 的自动化抓取数据，暂存到本地数据库。
+    """
+    logger.info(f"Received new feed from n8n: {item.source} - {item.title}")
+    db_item = FeedItem(
+        source=item.source,
+        title=item.title,
+        content=item.content,
+        url=item.url,
+        raw_data=item.raw_data
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@app.get("/api/feed/list", response_model=List[FeedItemResponse])
+async def list_feeds(skip: int = 0, limit: int = 50, is_saved_to_kb: bool = None, db: Session = Depends(get_db)):
+    """
+    获取资讯列表（供前端展示）
+    """
+    query = db.query(FeedItem)
+    if is_saved_to_kb is not None:
+        query = query.filter(FeedItem.is_saved_to_kb == is_saved_to_kb)
+    
+    feeds = query.order_by(FeedItem.created_at.desc()).offset(skip).limit(limit).all()
+    return feeds
+
+@app.post("/api/feed/{feed_id}/save_to_kb")
+async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    前端点击“整合进知识库”按钮时调用此接口。
+    将资讯内容发送给 Dify 进行向量化，并更新数据库状态。
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    if feed_item.is_saved_to_kb:
+        return {"status": "already_saved", "message": "This feed is already in the Knowledge Base."}
+
+    # 构建发送给 Dify 的内容
+    content_to_save = f"# {feed_item.title}\n\n{feed_item.full_text or feed_item.content}\n\nSource URL: {feed_item.url}"
+    
+    # 异步调用 Dify
+    logger.info(f"Triggering background task to save feed {feed_id} to Dify.")
+    background_tasks.add_task(
+        dify_client.save_text_to_dataset, 
+        text_content=content_to_save, 
+        title=f"[{feed_item.source}] {feed_item.title}",
+        kb_type="original"
+    )
+    
+    # 本地也保存一份 GraphNode 节点数据
+    node = GraphNode(
+        node_type="original",
+        title=f"[{feed_item.source}] {feed_item.title}",
+        content=content_to_save,
+        ref_id=feed_id
+    )
+    db.add(node)
+    
+    # 更新数据库状态
+    feed_item.is_saved_to_kb = True
+    db.commit()
+    
+    return {"status": "processing", "message": "Sent to Dify for embedding."}
+
+@app.post("/api/knowledge/save")
+async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    通用知识库保存接口，用于保存泛读笔记、精读笔记、闪念胶囊等，并支持分类
+    """
+    # 异步调用 Dify
+    logger.info(f"Triggering background task to save knowledge node '{req.title}' to Dify. type: {req.kb_type}")
+    background_tasks.add_task(
+        dify_client.save_text_to_dataset, 
+        text_content=req.content, 
+        title=req.title,
+        kb_type=req.kb_type
+    )
+    
+    # 本地落库
+    node = GraphNode(
+        node_type=req.kb_type,
+        title=req.title,
+        content=req.content,
+        ref_id=req.ref_id
+    )
+    db.add(node)
+    
+    # 建立简单的边关系 (如果关联了某篇 Feed 原文)
+    if req.ref_id:
+        original_node = db.query(GraphNode).filter(
+            GraphNode.ref_id == req.ref_id, 
+            GraphNode.node_type == "original"
+        ).first()
+        if original_node:
+            db.flush() # 获取 node.id
+            edge = GraphEdge(
+                source_node_id=node.id,
+                target_node_id=original_node.id,
+                relation_type="extracted_from"
+            )
+            db.add(edge)
+            
+    db.commit()
+    return {"status": "success", "message": f"Saved {req.kb_type} note successfully."}
+
+@app.post("/api/reader/skim")
+async def get_feed_skim_summary(feed_id: int, force_regenerate: bool = False, db: Session = Depends(get_db)):
+    """
+    泛读模式：请求后端根据资讯内容生成泛读总结。
+    如果已经生成过且不强制重新生成，则返回缓存结果。
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    if not force_regenerate and feed_item.skim_summary:
+        return {
+            "status": "success",
+            "feed_id": feed_id,
+            "summary": feed_item.skim_summary,
+            "cached": True
+        }
+        
+    # 调用 Dify 接口生成总结
+    summary = await dify_client.get_skim_reading_summary(
+        content=feed_item.content,
+        title=feed_item.title
+    )
+    
+    # 固化保存结果
+    feed_item.skim_summary = summary
+    db.commit()
+    
+    return {
+        "status": "success",
+        "feed_id": feed_id,
+        "summary": summary,
+        "cached": False
+    }
+
+@app.post("/api/reader/chat")
+async def chat_with_feed(req: ChatRequest, db: Session = Depends(get_db)):
+    """
+    精读模式：与大模型进行针对性的对话
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == req.feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    try:
+        result = await dify_client.chat_with_document(
+            query=req.query,
+            content=feed_item.full_text or feed_item.content or "",
+            title=feed_item.title or "Unknown Title",
+            conversation_id=req.conversation_id
+        )
+    except Exception as e:
+        logger.error(f"Chat exception: {e}")
+        return {
+            "status": "error",
+            "answer": f"内部错误: {e}",
+            "conversation_id": ""
+        }
+    
+    return {
+        "status": "success",
+        "answer": result.get("answer", f"大模型未返回内容或发生错误: {result}"),
+        "conversation_id": result.get("conversation_id", "")
+    }
+
+@app.get("/api/reader/feed/{feed_id}/deep_read")
+async def get_deep_read_info(feed_id: int, db: Session = Depends(get_db)):
+    """
+    获取单篇 feed 的精读信息（包含聊天记录、翻译缓存，并拉取全文PDF）
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    # 如果是 arXiv 来源且还没有 full_text，尝试动态抓取
+    if feed_item.source and feed_item.source.lower() == "arxiv" and not feed_item.full_text and feed_item.url:
+        try:
+            full_text = await fetch_arxiv_pdf_text(feed_item.url)
+            if full_text:
+                feed_item.full_text = full_text
+                db.commit()
+        except Exception as e:
+            logger.error(f"Failed to fetch arxiv pdf: {e}")
+            
+    return {
+        "status": "success",
+        "full_text": feed_item.full_text,
+        "translated_content": feed_item.translated_content,
+        "translated_pdf_url": feed_item.translated_pdf_url,
+        "translated_pdf_url_mono": feed_item.translated_pdf_url_mono,
+        "deep_conversation_id": feed_item.deep_conversation_id,
+        "deep_chat_history": feed_item.deep_chat_history or []
+    }
+
+@app.post("/api/reader/feed/{feed_id}/chat_history")
+async def save_chat_history(feed_id: int, payload: ChatHistorySync, db: Session = Depends(get_db)):
+    """
+    同步前端聊天记录到数据库
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    feed_item.deep_conversation_id = payload.conversation_id
+    feed_item.deep_chat_history = payload.history
+    db.commit()
+    return {"status": "success"}
+
+@app.post("/api/reader/feed/{feed_id}/translate")
+async def translate_feed(feed_id: int, force_refresh: bool = False, db: Session = Depends(get_db)):
+    """
+    全文翻译功能
+    如果该源是 arXiv 并且有原文 URL，我们将调用 pdf2zh 提供排版一致的中文 PDF
+    如果 force_refresh 为 True，则强制忽略缓存，重新进行翻译
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    # 如果强制刷新，清理旧缓存文件和数据库记录
+    if force_refresh:
+        import os
+        from pathlib import Path
+        data_dir = Path("data/pdfs")
+        for suffix in ['-dual.pdf', '-mono.pdf', '-zh.pdf', '_zh.pdf']:
+            old_file = data_dir / f"{feed_id}_original{suffix}"
+            if old_file.exists():
+                try:
+                    os.remove(old_file)
+                except Exception:
+                    pass
+        feed_item.translated_pdf_url = None
+        feed_item.translated_pdf_url_mono = None
+        feed_item.translated_content = None
+        db.commit()
+        
+    # 如果不强制刷新且已经缓存过翻译，直接返回
+    elif feed_item.translated_pdf_url or feed_item.translated_pdf_url_mono or feed_item.translated_content:
+        return {
+            "status": "success",
+            "translated_content": feed_item.translated_content,
+            "translated_pdf_url": feed_item.translated_pdf_url,
+            "translated_pdf_url_mono": feed_item.translated_pdf_url_mono,
+            "cached": True
+        }
+        
+    # 如果是 arXiv 论文，我们尝试翻译整个 PDF
+    if feed_item.source == "arxiv" and feed_item.url:
+        # 获取真实的 pdf URL
+        pdf_url = feed_item.url.replace("abs", "pdf") + ".pdf"
+        dual_url, mono_url = await translate_pdf_with_pdf2zh(pdf_url, feed_id)
+        
+        if dual_url or mono_url:
+            feed_item.translated_pdf_url = dual_url
+            feed_item.translated_pdf_url_mono = mono_url
+            db.commit()
+            return {
+                "status": "success",
+                "translated_pdf_url": dual_url,
+                "translated_pdf_url_mono": mono_url,
+                "translated_content": None,
+                "cached": False
+            }
+            
+    # 回退到纯文本翻译
+    content_to_translate = feed_item.full_text or feed_item.content
+    translated = await dify_client.translate_text(content_to_translate)
+    feed_item.translated_content = translated
+    db.commit()
+    
+    return {
+        "status": "success",
+        "translated_content": translated,
+        "translated_pdf_url": None,
+        "translated_pdf_url_mono": None,
+        "cached": False
+    }
+
+# 预留给飞书的 Webhook 回调路由 (处理日常聊天消息存入知识库)
+@app.post("/webhook/feishu")
+async def feishu_webhook(request: Request, background_tasks: BackgroundTasks):
+    body = await request.json()
+    logger.info(f"Received Feishu Event: {body}")
+    
+    # 飞书要求的 URL Challenge 验证
+    if "challenge" in body:
+        return {"challenge": body["challenge"]}
+    
+    # 这里后续可以解析用户的纯文本消息，并异步存入 Dify
+    # 假设解析出的用户文本为 user_text
+    # background_tasks.add_task(dify_client.save_text_to_dataset, text_content=user_text, title="飞书碎片知识")
+    
+    return {"status": "received"}
+
+# 预留给 n8n 报告反馈的回调路由 (处理卡片按钮点击)
+@app.post("/webhook/n8n/report")
+async def n8n_report_webhook(request: Request, background_tasks: BackgroundTasks):
+    body = await request.json()
+    logger.info(f"Received n8n Action: {body}")
+    
+    try:
+        # 解析飞书互动卡片按钮传回的 action 和 content
+        # 参照之前 n8n 节点配置的 value 结构
+        action_value = body.get("action", {}).get("value", {})
+        action_type = action_value.get("action")
+        content_to_save = action_value.get("content")
+        
+        if action_type == "save_to_knowledge_base" and content_to_save:
+            logger.info("Triggering background task to save report to Dify Knowledge Base.")
+            # 使用后台任务异步保存，避免飞书 Webhook 等待超时
+            background_tasks.add_task(
+                dify_client.save_text_to_dataset, 
+                text_content=content_to_save, 
+                title="InsightGraph 每日追踪早报入库"
+            )
+            return {"status": "processing", "message": "Save to knowledge base initiated"}
+        else:
+            return {"status": "ignored", "message": "No valid action found"}
+            
+    except Exception as e:
+        logger.error(f"Error processing n8n webhook: {e}")
+        return {"status": "error", "message": str(e)}
