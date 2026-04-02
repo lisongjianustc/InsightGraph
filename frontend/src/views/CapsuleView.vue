@@ -26,7 +26,7 @@
             <div v-if="!isUploading" class="el-upload__text text-gray-400 p-4">
               <el-icon class="text-3xl mb-2 text-gray-300"><DocumentAdd /></el-icon>
               <div>拖拽文档到此处上传解析</div>
-              <div class="text-xs mt-1">支持 PDF / Word / Excel / PPT / MD / TXT</div>
+              <div class="text-xs mt-1">支持 图文 / PDF / Word / Excel / PPT / MD / TXT</div>
             </div>
             <div v-else class="el-upload__text text-gray-400 p-4 flex flex-col items-center justify-center">
               <el-icon class="text-3xl mb-2 text-blue-400 is-loading"><Loading /></el-icon>
@@ -44,6 +44,7 @@
               class="custom-textarea text-lg"
               @keydown.ctrl.enter="submitCapsule"
               @keydown.meta.enter="submitCapsule"
+              @paste="handlePaste"
             />
             <div class="absolute bottom-3 right-3 flex items-center gap-3">
               <span class="text-xs text-gray-400">Ctrl + Enter 发送</span>
@@ -112,12 +113,7 @@ const isLoading = ref(false)
 const isUploading = ref(false)
 const capsules = ref<any[]>([])
 
-const beforeUpload = (file: File) => {
-  const isImage = file.type.startsWith('image/')
-  if (isImage) {
-    ElMessage.warning('图片 OCR 解析功能暂未启用，请上传文档格式。')
-    return false
-  }
+const beforeUpload = (_file: File) => {
   isUploading.value = true
   return true
 }
@@ -177,6 +173,40 @@ const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleString('zh-CN', {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
   })
+}
+
+const handlePaste = async (e: ClipboardEvent) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1) {
+      const file = items[i].getAsFile()
+      if (file) {
+        e.preventDefault()
+        await uploadImageFile(file)
+        break
+      }
+    }
+  }
+}
+
+const uploadImageFile = async (file: File) => {
+  if (!beforeUpload(file)) return
+  
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  try {
+    const res = await axios.post(uploadUrl, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    handleUploadSuccess(res.data, file)
+  } catch (error: any) {
+    handleUploadError(error, file)
+  }
 }
 
 onMounted(() => {

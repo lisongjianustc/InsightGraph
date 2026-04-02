@@ -221,6 +221,71 @@ class DifyService:
             logger.error(f"Failed to connect to Dify Translate API: {str(e)}")
             return f"连接大模型翻译服务失败：{str(e)}"
 
+    async def extract_text_from_image(self, file_bytes: bytes, filename: str, mime_type: str) -> str:
+        """
+        调用 Dify 的 Chatbot API（搭载视觉模型）从图片中提取文字和表格（OCR）。
+        1. 先调用 /v1/files/upload 上传图片
+        2. 再调用 /v1/chat-messages 传入 file_id 获取 OCR 结果
+        """
+        if not self.ocr_workflow_api_key:
+            logger.warning("DIFY_OCR_WORKFLOW_API_KEY is not set.")
+            return f"**【系统提示】**\n未配置 `DIFY_OCR_WORKFLOW_API_KEY`，无法处理图片 OCR。\n请在 Dify 中配置好带有视觉能力的模型，并填入环境变量。"
+
+        # 1. 上传文件获取 ID
+        upload_endpoint = f"{self.api_url}/files/upload"
+        headers = {
+            "Authorization": f"Bearer {self.ocr_workflow_api_key}"
+        }
+        
+        # 准备 Multipart Form Data (注意 requests / httpx 中 file tuple 的格式)
+        files = {
+            'file': (filename, file_bytes, mime_type)
+        }
+        data = {
+            'user': 'insight-graph-user'
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                upload_res = await client.post(upload_endpoint, headers=headers, files=files, data=data, timeout=60.0)
+                upload_res.raise_for_status()
+                file_id = upload_res.json().get('id')
+                if not file_id:
+                    return "图片上传到 Dify 失败，未返回 file_id。"
+                    
+                # 2. 发送聊天消息进行 OCR
+                chat_endpoint = f"{self.api_url}/chat-messages"
+                chat_headers = {
+                    "Authorization": f"Bearer {self.ocr_workflow_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                # Qwen3VL, Llava 等视觉模型，要求提取内容并格式化为 Markdown
+                payload = {
+                    "inputs": {},
+                    "query": "You are an expert OCR and markdown formatter. Extract all text, tables, and formulas from this image and format them in beautiful Markdown. Do not include any other conversational text.",
+                    "response_mode": "blocking",
+                    "user": "insight-graph-user",
+                    "files": [
+                        {
+                            "type": "image",
+                            "transfer_method": "local_file",
+                            "upload_file_id": file_id
+                        }
+                    ]
+                }
+                
+                chat_res = await client.post(chat_endpoint, headers=chat_headers, json=payload, timeout=120.0)
+                chat_res.raise_for_status()
+                return chat_res.json().get("answer", "OCR 模型未能返回任何文本。")
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Dify OCR API Error: {e.response.text}")
+            return f"请求 Dify OCR 接口失败：HTTP {e.response.status_code}\n{e.response.text}"
+        except Exception as e:
+            logger.error(f"Failed to process image OCR via Dify: {str(e)}")
+            return f"处理图片 OCR 失败：{str(e)}"
+
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
         根据不同的分类获取对应的 Dataset ID。

@@ -402,16 +402,20 @@ async def upload_capsule_file(
     filename = file.filename
     
     try:
-        # 解析文件内容为文本
-        extracted_text = parse_file_to_text(content, filename)
+        # 如果是图片格式，则调用 Dify 多模态模型进行 OCR 解析
+        if file.content_type and file.content_type.startswith('image/'):
+            extracted_text = await dify_client.extract_text_from_image(content, filename, file.content_type)
+        else:
+            # 解析文件内容为文本
+            extracted_text = parse_file_to_text(content, filename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to parse file {filename}: {e}")
         raise HTTPException(status_code=500, detail="文件解析失败")
         
-    if not extracted_text.strip():
-        raise HTTPException(status_code=400, detail="未能从文件中提取到有效文本内容")
+    if not extracted_text or not extracted_text.strip():
+        raise HTTPException(status_code=400, detail="未能从文件中提取到有效内容")
 
     # 构建胶囊内容，包含文件名以示区分
     capsule_content = f"【文件解析: {filename}】\n\n{extracted_text}"
