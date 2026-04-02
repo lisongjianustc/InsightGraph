@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import { Connection, Document, ChatDotRound, Setting, MagicStick } from '@element-plus/icons-vue'
 
 const route = useRoute()
 </script>
@@ -24,10 +25,17 @@ const route = useRoute()
           今日资讯 (Feed)
         </router-link>
         
+        <router-link to="/capsule" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+          :class="route.path === '/capsule' ? 'bg-purple-50 text-purple-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
+          <el-icon><MagicStick /></el-icon>
+          闪念胶囊 (Capsule)
+        </router-link>
+        
         <!-- 预留其他菜单 -->
         <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
           <el-icon><ChatDotRound /></el-icon>
-          智能问答 (Chat)
+          全局问答 (Chat)
         </a>
         <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
           <el-icon><Setting /></el-icon>
@@ -49,11 +57,13 @@ const route = useRoute()
     <main class="flex-1 overflow-auto flex flex-col">
       <header class="h-16 bg-white border-b border-gray-200 flex items-center px-8 shrink-0">
         <h2 class="text-lg font-medium text-gray-800">
-          {{ route.name === 'feed' ? '知识发现' : 'InsightGraph' }}
+          <template v-if="route.name === 'feed'">知识发现</template>
+          <template v-else-if="route.name === 'capsule'">闪念胶囊</template>
+          <template v-else>InsightGraph</template>
         </h2>
       </header>
       
-      <div class="p-8 flex-1">
+      <div class="p-8 flex-1" :class="{'!p-0': route.name === 'capsule'}">
         <router-view />
       </div>
     </main>

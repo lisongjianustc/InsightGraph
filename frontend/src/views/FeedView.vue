@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled } from '@element-plus/icons-vue'
 
 const API_BASE = '/api'
@@ -36,15 +36,16 @@ const currentDeepFeed = ref<FeedItem | null>(null)
 const chatInput = ref('')
 const chatLoading = ref(false)
 const conversationId = ref('')
-const showTranslation = ref(true) // 默认开启翻译
+// 默认开启翻译
 const translating = ref(false)
 const translatedContent = ref('')
 const translatedPdfUrl = ref('')
 const translatedPdfUrlMono = ref('')
 const deepLayoutMode = ref<'split' | 'full'>('split')
 const isChatFloatingVisible = ref(false)
-const readingViewType = ref<'pdf' | 'translation' | 'translation_mono' | 'text'>('translation')
+const readingViewType = ref<string>('translation')
 const isHeaderCollapsed = ref(false)
+
 interface ChatMessage {
   id: string
   role: 'user' | 'assistant'

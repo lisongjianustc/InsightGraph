@@ -57,17 +57,21 @@ class DifyService:
                     endpoint,
                     json=payload,
                     headers=headers,
-                    timeout=30.0 # 向量化可能需要一点时间
+                    timeout=180.0
                 )
                 response.raise_for_status()
                 result = response.json()
-                logger.info(f"Successfully saved to Dify. Doc ID: {result.get('document', {}).get('id')}")
+                logger.info(f"Successfully saved text to dataset {dataset_id}")
                 return result
+        except httpx.ReadTimeout:
+            logger.error(f"Dify save_text_to_dataset API ReadTimeout for {dataset_id}")
+            return {"error": "Timeout", "details": "The request timed out. Indexing might still be processing in the background."}
         except httpx.HTTPStatusError as e:
             logger.error(f"Dify API Error: {e.response.text}")
             return {"error": f"API Error: {e.response.status_code}", "details": e.response.text}
         except Exception as e:
-            logger.error(f"Failed to connect to Dify: {str(e)}")
+            import traceback
+            logger.error(f"Failed to connect to Dify: {str(e)}\n{traceback.format_exc()}")
             return {"error": "Connection failed", "details": str(e)}
 
     async def get_skim_reading_summary(self, content: str, title: str) -> str:

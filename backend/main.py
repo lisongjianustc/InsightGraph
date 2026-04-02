@@ -7,7 +7,9 @@ from app.services.dify_service import dify_client
 from app.core.database import engine, Base, get_db
 from app.models.feed import FeedItem
 from app.models.graph import GraphNode, GraphEdge
+from app.models.capsule import Capsule
 from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequest, ChatRequest, ChatHistorySync
+from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
 
@@ -94,6 +96,17 @@ async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: S
         
     if feed_item.is_saved_to_kb:
         return {"status": "already_saved", "message": "This feed is already in the Knowledge Base."}
+
+    # 如果是 arxiv 源且 full_text 为空，主动抓取完整的英文原文 PDF 内容
+    if feed_item.source == 'arxiv' and not feed_item.full_text and feed_item.url:
+        try:
+            from app.utils.pdf_parser import fetch_arxiv_pdf_text
+            full_text = await fetch_arxiv_pdf_text(feed_item.url)
+            if full_text:
+                feed_item.full_text = full_text
+                db.commit()
+        except Exception as e:
+            logger.error(f"Failed to fetch arxiv pdf text before saving to KB: {e}")
 
     # 构建发送给 Dify 的内容
     content_to_save = f"# {feed_item.title}\n\n{feed_item.full_text or feed_item.content}\n\nSource URL: {feed_item.url}"
@@ -340,6 +353,48 @@ async def translate_feed(feed_id: int, force_refresh: bool = False, db: Session 
         "translated_pdf_url_mono": None,
         "cached": False
     }
+
+@app.post("/api/capsules")
+async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    创建一条新的闪念胶囊，并自动发送给 Dify 知识库进行向量化。
+    """
+    # 1. 本地落库保存胶囊记录
+    new_capsule = Capsule(
+        title=capsule.title,
+        content=capsule.content
+    )
+    db.add(new_capsule)
+    db.commit()
+    db.refresh(new_capsule)
+    
+    # 2. 生成 GraphNode 数据用于关联
+    capsule_node = GraphNode(
+        node_type="capsule",
+        title=capsule.title or f"闪念胶囊 #{new_capsule.id}",
+        content=capsule.content,
+        ref_id=new_capsule.id
+    )
+    db.add(capsule_node)
+    db.commit()
+
+    # 3. 异步发送给 Dify 向量化
+    background_tasks.add_task(
+        dify_client.save_text_to_dataset,
+        text_content=capsule.content,
+        title=capsule.title or f"[闪念胶囊] #{new_capsule.id}",
+        kb_type="capsule"
+    )
+
+    return {"status": "success", "id": new_capsule.id, "message": "Capsule created and sent to Dify."}
+
+@app.get("/api/capsules")
+async def list_capsules(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+    """
+    获取所有的闪念胶囊列表
+    """
+    capsules = db.query(Capsule).order_by(Capsule.created_at.desc()).offset(skip).limit(limit).all()
+    return capsules
 
 # 预留给飞书的 Webhook 回调路由 (处理日常聊天消息存入知识库)
 @app.post("/webhook/feishu")

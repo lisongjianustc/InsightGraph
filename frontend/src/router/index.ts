@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainLayout from '../components/MainLayout.vue'
 import FeedView from '../views/FeedView.vue'
+import CapsuleView from '../views/CapsuleView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,7 +15,11 @@ const router = createRouter({
           name: 'feed',
           component: FeedView
         },
-        // 后续可以在这里加 /chat, /settings 等页面
+        {
+          path: 'capsule',
+          name: 'capsule',
+          component: CapsuleView
+        }
       ]
     }
   ]
