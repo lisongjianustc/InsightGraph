@@ -19,6 +19,9 @@ class DifyService:
         # 获取精读大模型应用 API Key (无预设模板的自由对话应用)
         self.deep_reader_api_key = os.getenv("DIFY_DEEP_READER_API_KEY", self.reader_api_key)
         
+        # 获取用于文件解析和 OCR 提取的工作流 API Key
+        self.ocr_workflow_api_key = os.getenv("DIFY_OCR_WORKFLOW_API_KEY", "")
+        
     async def save_text_to_dataset(self, text_content: str, title: Optional[str] = None, kb_type: str = "default") -> Dict[str, Any]:
         """
         将文本内容保存到 Dify 的知识库中

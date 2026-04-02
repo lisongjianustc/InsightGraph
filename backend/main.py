@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, BackgroundTasks, Depends, HTTPException
+from fastapi import FastAPI, Request, BackgroundTasks, Depends, HTTPException, File, UploadFile, Form
 import logging
 from sqlalchemy.orm import Session
 from typing import List
@@ -12,6 +12,7 @@ from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequ
 from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
+from app.utils.file_parser import parse_file_to_text
 
 # 自动创建数据库表（生产环境建议使用 Alembic 迁移）
 Base.metadata.create_all(bind=engine)
@@ -387,6 +388,63 @@ async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTas
     )
 
     return {"status": "success", "id": new_capsule.id, "message": "Capsule created and sent to Dify."}
+
+@app.post("/api/capsules/upload")
+async def upload_capsule_file(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    db: Session = Depends(get_db)
+):
+    """
+    接收上传的文件，解析为纯文本，并保存为闪念胶囊（暂不涉及 OCR 图片解析）
+    """
+    content = await file.read()
+    filename = file.filename
+    
+    try:
+        # 解析文件内容为文本
+        extracted_text = parse_file_to_text(content, filename)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to parse file {filename}: {e}")
+        raise HTTPException(status_code=500, detail="文件解析失败")
+        
+    if not extracted_text.strip():
+        raise HTTPException(status_code=400, detail="未能从文件中提取到有效文本内容")
+
+    # 构建胶囊内容，包含文件名以示区分
+    capsule_content = f"【文件解析: {filename}】\n\n{extracted_text}"
+    title = f"文件: {filename}"
+    
+    # 1. 本地落库
+    new_capsule = Capsule(
+        title=title,
+        content=capsule_content
+    )
+    db.add(new_capsule)
+    db.commit()
+    db.refresh(new_capsule)
+    
+    # 2. 生成 GraphNode
+    capsule_node = GraphNode(
+        node_type="capsule",
+        title=title,
+        content=capsule_content,
+        ref_id=new_capsule.id
+    )
+    db.add(capsule_node)
+    db.commit()
+
+    # 3. 发送给 Dify
+    background_tasks.add_task(
+        dify_client.save_text_to_dataset,
+        text_content=capsule_content,
+        title=title,
+        kb_type="capsule"
+    )
+
+    return {"status": "success", "id": new_capsule.id, "message": f"文件 {filename} 已成功解析并入库。"}
 
 @app.get("/api/capsules")
 async def list_capsules(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
