@@ -29,10 +29,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.services.rss_service import fetch_arxiv_rss
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Start the background scheduler
+    logger.info("Starting APScheduler for background tasks...")
+    scheduler = BackgroundScheduler()
+    # 每小时自动抓取一次 RSS
+    scheduler.add_job(fetch_arxiv_rss, 'interval', minutes=60)
+    scheduler.start()
+    
+    # 启动时先执行一次抓取
+    scheduler.add_job(fetch_arxiv_rss, 'date')
+    
+    yield
+    
+    # Shutdown: Shutdown the scheduler
+    logger.info("Shutting down APScheduler...")
+    scheduler.shutdown()
+
 app = FastAPI(
     title="InsightGraph API",
     description="Knowledge Base System Core Backend for local Web Admin, n8n, and Dify integrations.",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # 允许前端跨域请求
@@ -526,3 +549,32 @@ async def n8n_report_webhook(request: Request, background_tasks: BackgroundTasks
     except Exception as e:
         logger.error(f"Error processing n8n webhook: {e}")
         return {"status": "error", "message": str(e)}
+
+@app.post("/api/settings/sync")
+async def trigger_manual_sync(background_tasks: BackgroundTasks):
+    """
+    手动触发 RSS / 自动源抓取
+    """
+    from app.services.rss_service import fetch_arxiv_rss
+    background_tasks.add_task(fetch_arxiv_rss)
+    return {"status": "success", "message": "Sync task started in background"}
+
+@app.delete("/api/settings/tags/{tag_id}")
+async def delete_tag_node(tag_id: int, db: Session = Depends(get_db)):
+    """
+    删除标签节点以及与其相连的边
+    """
+    tag_node = db.query(GraphNode).filter(GraphNode.id == tag_id, GraphNode.node_type == 'tag').first()
+    if not tag_node:
+        raise HTTPException(status_code=404, detail="Tag not found")
+        
+    # 删除关联边
+    db.query(GraphEdge).filter(
+        (GraphEdge.source_node_id == tag_id) | (GraphEdge.target_node_id == tag_id)
+    ).delete()
+    
+    # 删除标签节点
+    db.delete(tag_node)
+    db.commit()
+    
+    return {"status": "success", "message": "Tag and its relations deleted"}

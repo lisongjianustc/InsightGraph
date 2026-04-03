@@ -46,10 +46,12 @@ const route = useRoute()
           <el-icon><ChatDotRound /></el-icon>
           全局问答 (Chat)
         </router-link>
-        <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors opacity-50 cursor-not-allowed">
+        <router-link to="/settings" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+          :class="route.path === '/settings' ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-600 hover:bg-gray-50'">
           <el-icon><Setting /></el-icon>
-          系统设置
-        </a>
+          系统设置 (Settings)
+        </router-link>
       </nav>
       
       <div class="p-4 border-t border-gray-100">

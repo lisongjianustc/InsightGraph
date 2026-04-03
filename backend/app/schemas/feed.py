@@ -23,11 +23,11 @@ class FeedItemResponse(FeedItemCreate):
 
 class ChatHistorySync(BaseModel):
     conversation_id: Optional[str] = None
+    history: list
 
 class GlobalChatRequest(BaseModel):
     query: str
     conversation_id: Optional[str] = ""
-    history: list
 
 class ChatRequest(BaseModel):
     feed_id: int
