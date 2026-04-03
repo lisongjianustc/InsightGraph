@@ -24,3 +24,13 @@ class FeedItem(Base):
     status = Column(String(50), default="unread")
     is_saved_to_kb = Column(Boolean, default=False) # 是否已整合进知识库
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class SourceConfig(Base):
+    __tablename__ = "source_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), index=True) # 来源名称，比如 "arxiv", "ycombinator"
+    type = Column(String(50), default="rss") # rss, atom, json
+    url = Column(String(512), nullable=False) # 订阅地址
+    is_active = Column(Boolean, default=True) # 是否开启自动抓取
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

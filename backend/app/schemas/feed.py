@@ -35,6 +35,18 @@ class GlobalChatRequest(BaseModel):
     conversation_id: Optional[str] = ""
     files: Optional[list[ChatFile]] = []
 
+class SourceConfigCreate(BaseModel):
+    name: str
+    type: str = "rss"
+    url: str
+    is_active: bool = True
+
+class SourceConfigResponse(SourceConfigCreate):
+    id: int
+    
+    class Config:
+        orm_mode = True
+
 class ChatRequest(BaseModel):
     feed_id: int
     query: str

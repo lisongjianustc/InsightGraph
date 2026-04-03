@@ -6,10 +6,10 @@ from typing import List
 
 from app.services.dify_service import dify_client
 from app.core.database import engine, Base, get_db
-from app.models.feed import FeedItem
+from app.models.feed import FeedItem, SourceConfig
 from app.models.graph import GraphNode, GraphEdge
 from app.models.capsule import Capsule
-from app.schemas.feed import FeedItemCreate, FeedItemResponse, KnowledgeSaveRequest, ChatRequest, ChatHistorySync, GlobalChatRequest
+from app.schemas.feed import FeedItemCreate, FeedItemResponse, ChatRequest, KnowledgeSaveRequest, GlobalChatRequest, SourceConfigCreate, SourceConfigResponse, ChatHistorySync
 from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
@@ -31,19 +31,19 @@ import os
 
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.services.rss_service import fetch_arxiv_rss
+from app.services.rss_service import fetch_all_active_sources
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Start the background scheduler
     logger.info("Starting APScheduler for background tasks...")
     scheduler = BackgroundScheduler()
-    # 每小时自动抓取一次 RSS
-    scheduler.add_job(fetch_arxiv_rss, 'interval', minutes=60)
+    # 每小时自动抓取一次活跃的信息源
+    scheduler.add_job(fetch_all_active_sources, 'interval', minutes=60)
     scheduler.start()
     
     # 启动时先执行一次抓取
-    scheduler.add_job(fetch_arxiv_rss, 'date')
+    scheduler.add_job(fetch_all_active_sources, 'date')
     
     yield
     
@@ -668,13 +668,52 @@ async def n8n_report_webhook(request: Request, background_tasks: BackgroundTasks
         logger.error(f"Error processing n8n webhook: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/api/settings/sources", response_model=list[SourceConfigResponse])
+async def list_sources(db: Session = Depends(get_db)):
+    """获取所有信息源配置"""
+    return db.query(SourceConfig).all()
+
+@app.post("/api/settings/sources", response_model=SourceConfigResponse)
+async def create_source(payload: SourceConfigCreate, db: Session = Depends(get_db)):
+    """新增信息源"""
+    new_source = SourceConfig(**payload.dict())
+    db.add(new_source)
+    db.commit()
+    db.refresh(new_source)
+    return new_source
+
+@app.put("/api/settings/sources/{source_id}", response_model=SourceConfigResponse)
+async def update_source(source_id: int, payload: SourceConfigCreate, db: Session = Depends(get_db)):
+    """更新信息源配置"""
+    source = db.query(SourceConfig).filter(SourceConfig.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    for key, value in payload.dict().items():
+        setattr(source, key, value)
+        
+    db.commit()
+    db.refresh(source)
+    return source
+
+@app.delete("/api/settings/sources/{source_id}")
+async def delete_source(source_id: int, db: Session = Depends(get_db)):
+    """删除信息源"""
+    source = db.query(SourceConfig).filter(SourceConfig.id == source_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+        
+    db.delete(source)
+    db.commit()
+    return {"status": "success"}
+
 @app.post("/api/settings/sync")
 async def trigger_manual_sync(background_tasks: BackgroundTasks):
     """
-    手动触发 RSS / 自动源抓取
+    手动触发自动源抓取
     """
-    from app.services.rss_service import fetch_arxiv_rss
-    background_tasks.add_task(fetch_arxiv_rss)
+    from app.services.rss_service import fetch_all_active_sources
+    background_tasks.add_task(fetch_all_active_sources)
     return {"status": "success", "message": "Sync task started in background"}
 
 @app.delete("/api/settings/tags/{tag_id}")
@@ -696,3 +735,31 @@ async def delete_tag_node(tag_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"status": "success", "message": "Tag and its relations deleted"}
+
+from sqlalchemy.sql.expression import func
+
+@app.get("/api/review/daily")
+async def get_daily_review(db: Session = Depends(get_db)):
+    """获取每日温故卡片（随机从胶囊或精读文献中抽取一条）"""
+    import random
+    
+    review_type = random.choice(["capsule", "feed"])
+    
+    if review_type == "capsule":
+        item = db.query(Capsule).order_by(func.random()).first()
+        if item:
+            return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at}}
+            
+    # 如果没抽到胶囊，或者抽到了 feed，则去查 feed
+    item = db.query(FeedItem).filter(FeedItem.status == 'deep_read').order_by(func.random()).first()
+    if item:
+        return {"type": "feed", "data": {"id": item.id, "title": item.title, "content": item.skim_summary or item.content, "source": item.source, "date": item.created_at}}
+        
+    # 如果 feed 也没有，再去查一次胶囊兜底
+    item = db.query(Capsule).order_by(func.random()).first()
+    if item:
+        return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at}}
+        
+    return {"type": "none", "data": None}
+
+# -------------------- 其他接口 --------------------

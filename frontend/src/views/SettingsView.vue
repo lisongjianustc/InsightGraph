@@ -70,6 +70,40 @@
         </div>
       </el-tab-pane>
 
+      <!-- 信息源管理 -->
+      <el-tab-pane label="信息源管理">
+        <template #label>
+          <span class="flex items-center gap-2"><el-icon><Link /></el-icon> 信息源管理</span>
+        </template>
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-lg font-bold text-gray-700">配置订阅源 (RSS/API)</h3>
+              <p class="text-sm text-gray-500">添加你关注的博客、期刊或 Arxiv 分类链接。</p>
+            </div>
+            <el-button type="primary" @click="openSourceDialog()">
+              <el-icon class="mr-1"><Plus /></el-icon> 添加源
+            </el-button>
+          </div>
+          
+          <el-table :data="sources" style="width: 100%" v-loading="loadingSources" class="border rounded-lg">
+            <el-table-column prop="name" label="名称" width="150" />
+            <el-table-column prop="url" label="链接" show-overflow-tooltip />
+            <el-table-column prop="is_active" label="状态" width="100">
+              <template #default="scope">
+                <el-switch v-model="scope.row.is_active" @change="toggleSourceStatus(scope.row)" />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" fixed="right">
+              <template #default="scope">
+                <el-button link type="primary" @click="openSourceDialog(scope.row)">编辑</el-button>
+                <el-button link type="danger" @click="deleteSource(scope.row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
       <!-- 标签管理 -->
       <el-tab-pane label="标签管理">
         <template #label>
@@ -102,13 +136,34 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 添加/编辑源弹窗 -->
+    <el-dialog v-model="sourceDialogVisible" :title="editingSource.id ? '编辑订阅源' : '添加订阅源'" width="500px">
+      <el-form :model="editingSource" label-width="80px">
+        <el-form-item label="名称" required>
+          <el-input v-model="editingSource.name" placeholder="例如: Github Trending" />
+        </el-form-item>
+        <el-form-item label="URL" required>
+          <el-input v-model="editingSource.url" placeholder="http://..." />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="editingSource.is_active" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="sourceDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isSavingSource" @click="saveSource">确认</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useDark } from '@vueuse/core'
-import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh } from '@element-plus/icons-vue'
+import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
@@ -118,6 +173,81 @@ const isDark = useDark()
 const isSyncing = ref(false)
 const loadingTags = ref(false)
 const tags = ref<any[]>([])
+
+const loadingSources = ref(false)
+const sources = ref<any[]>([])
+const sourceDialogVisible = ref(false)
+const isSavingSource = ref(false)
+const editingSource = ref<any>({ name: '', url: '', is_active: true })
+
+const fetchSources = async () => {
+  loadingSources.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/settings/sources`)
+    sources.value = res.data
+  } catch (e) {
+    ElMessage.error('获取订阅源失败')
+  } finally {
+    loadingSources.value = false
+  }
+}
+
+const openSourceDialog = (source?: any) => {
+  if (source) {
+    editingSource.value = { ...source }
+  } else {
+    editingSource.value = { name: '', url: '', is_active: true }
+  }
+  sourceDialogVisible.value = true
+}
+
+const saveSource = async () => {
+  if (!editingSource.value.name || !editingSource.value.url) {
+    ElMessage.warning('请填写名称和 URL')
+    return
+  }
+  isSavingSource.value = true
+  try {
+    if (editingSource.value.id) {
+      await axios.put(`${API_BASE}/settings/sources/${editingSource.value.id}`, editingSource.value)
+    } else {
+      await axios.post(`${API_BASE}/settings/sources`, editingSource.value)
+    }
+    ElMessage.success('保存成功')
+    sourceDialogVisible.value = false
+    fetchSources()
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    isSavingSource.value = false
+  }
+}
+
+const toggleSourceStatus = async (source: any) => {
+  try {
+    await axios.put(`${API_BASE}/settings/sources/${source.id}`, source)
+    ElMessage.success(`已${source.is_active ? '启用' : '禁用'}源: ${source.name}`)
+  } catch (e) {
+    source.is_active = !source.is_active // revert
+    ElMessage.error('状态切换失败')
+  }
+}
+
+const deleteSource = (source: any) => {
+  ElMessageBox.confirm(`确定要删除源 "${source.name}" 吗？`, '警告', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await axios.delete(`${API_BASE}/settings/sources/${source.id}`)
+      ElMessage.success('删除成功')
+      fetchSources()
+    } catch (e) {
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {})
+}
 
 const triggerSync = async () => {
   isSyncing.value = true
@@ -166,5 +296,6 @@ const handleClose = (tag: any) => {
 
 onMounted(() => {
   fetchTags()
+  fetchSources()
 })
 </script>

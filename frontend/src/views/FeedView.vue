@@ -2,9 +2,26 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled } from '@element-plus/icons-vue'
+import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled, Sunny } from '@element-plus/icons-vue'
 
 const API_BASE = '/api'
+
+const dailyReview = ref<any>(null)
+const dailyReviewLoading = ref(false)
+
+const fetchDailyReview = async () => {
+  dailyReviewLoading.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/review/daily`)
+    if (res.data.type !== 'none') {
+      dailyReview.value = res.data
+    }
+  } catch (error) {
+    console.error('获取温故卡片失败', error)
+  } finally {
+    dailyReviewLoading.value = false
+  }
+}
 
 interface FeedItem {
   id: number
@@ -24,6 +41,16 @@ interface FeedItem {
 const feeds = ref<FeedItem[]>([])
 const loading = ref(false)
 const activeTab = ref('all')
+const sources = ref<any[]>([])
+
+const fetchSources = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/settings/sources`)
+    sources.value = res.data.filter((s: any) => s.is_active)
+  } catch (error) {
+    console.error('获取信息源失败', error)
+  }
+}
 
 const skimDialogVisible = ref(false)
 const skimLoading = ref(false)
@@ -145,8 +172,9 @@ const formatDate = (dateStr: string) => {
 }
 
 const getSourceTagType = (source: string) => {
-  if (source.toLowerCase() === 'github') return 'success'
-  if (source.toLowerCase() === 'arxiv') return 'warning'
+  const s = source.toLowerCase()
+  if (s === 'github') return 'success'
+  if (s === 'arxiv') return 'warning'
   return 'info'
 }
 
@@ -181,7 +209,7 @@ const getKeywordTagType = (index: number) => {
 
 const filteredFeeds = computed(() => {
   if (activeTab.value === 'all') return feeds.value
-  return feeds.value.filter(feed => feed.source.toLowerCase() === activeTab.value)
+  return feeds.value.filter(feed => feed.source.toLowerCase() === activeTab.value.toLowerCase())
 })
 
 const openSkimDialog = async (feed: FeedItem, forceRegenerate: boolean = false) => {
@@ -538,7 +566,9 @@ const saveChatMsgToKb = async (msg: ChatMessage) => {
 }
 
 onMounted(() => {
+  fetchSources()
   fetchFeeds()
+  fetchDailyReview()
 })
 </script>
 
@@ -577,9 +607,29 @@ onMounted(() => {
     <!-- 分栏 / 分 Tab 展示区 -->
     <el-tabs v-model="activeTab" class="mb-6">
       <el-tab-pane label="全部 (All)" name="all" />
-      <el-tab-pane label="arXiv 论文" name="arxiv" />
-      <el-tab-pane label="GitHub 趋势" name="github" />
+      <el-tab-pane v-for="source in sources" :key="source.id" :label="source.name" :name="source.name.toLowerCase()" />
     </el-tabs>
+
+    <!-- 每日温故小卡片 -->
+    <div v-if="dailyReview" class="mb-6">
+      <el-card shadow="hover" class="rounded-xl border-0 bg-gradient-to-r from-amber-50 to-orange-50 relative overflow-hidden">
+        <div class="absolute -right-4 -top-4 opacity-10">
+          <el-icon :size="100"><Sunny /></el-icon>
+        </div>
+        <div class="relative z-10">
+          <div class="flex items-center gap-2 text-amber-600 font-bold mb-3">
+            <el-icon><Sunny /></el-icon>
+            每日温故 (Spaced Repetition)
+            <el-tag size="small" type="warning" effect="plain" class="ml-2">{{ dailyReview.type === 'capsule' ? '闪念胶囊' : '精读文献' }}</el-tag>
+          </div>
+          <h4 class="text-lg font-bold text-gray-800 mb-2 line-clamp-1">{{ dailyReview.data.title || '无标题' }}</h4>
+          <div class="text-sm text-gray-600 line-clamp-3 mb-3">{{ dailyReview.data.content }}</div>
+          <div class="text-xs text-gray-400">
+            收录于 {{ formatDate(dailyReview.data.date) }}
+          </div>
+        </div>
+      </el-card>
+    </div>
 
     <el-skeleton :loading="loading" animated :count="3" class="space-y-4">
       <template #template>
