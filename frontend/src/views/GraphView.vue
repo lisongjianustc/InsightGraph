@@ -51,9 +51,16 @@
 
         <!-- 概念释义区 -->
         <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg mb-4">
-          <h3 class="font-bold text-indigo-800 mb-2 flex items-center gap-2">
-            <el-icon><InfoFilled /></el-icon> 概念释义
-          </h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold text-indigo-800 flex items-center gap-2">
+              <el-icon><InfoFilled /></el-icon> 概念释义
+            </h3>
+            <el-button 
+              v-if="!loadingDefinition && (tagDefinition.includes('获取定义失败') || tagDefinition === '暂无释义' || !tagDefinition)" 
+              size="small" type="primary" plain round @click="fetchTagDefinition(selectedNode, true)">
+              <el-icon class="mr-1"><Refresh /></el-icon> 重新获取
+            </el-button>
+          </div>
           <div v-if="loadingDefinition" class="flex items-center gap-2 text-indigo-400 text-sm py-2">
             <el-icon class="is-loading"><Loading /></el-icon> 正在由 AI 生成专业释义...
           </div>
@@ -133,19 +140,20 @@ const openDoc = (doc: any) => {
   }
 }
 
-const fetchTagDefinition = async (node: any) => {
-  if (node.content && !node.content.startsWith('Tag:')) {
+const fetchTagDefinition = async (node: any, force = false) => {
+  if (!force && node.content && !node.content.startsWith('Tag:') && !node.content.includes('获取定义失败')) {
     tagDefinition.value = node.content
     return
   }
   loadingDefinition.value = true
   tagDefinition.value = ''
   try {
-    const res = await axios.get(`${API_BASE}/graph/tag/${node.id}/definition`)
+    const res = await axios.get(`${API_BASE}/graph/tag/${node.id}/definition`, { params: { force: force ? true : undefined } })
     tagDefinition.value = res.data.definition
     node.content = res.data.definition // update local cache
   } catch (error) {
     tagDefinition.value = '获取定义失败，请检查网络或 Dify 配置'
+    node.content = tagDefinition.value
   } finally {
     loadingDefinition.value = false
   }
