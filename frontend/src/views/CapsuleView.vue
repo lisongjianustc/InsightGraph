@@ -140,12 +140,19 @@
     >
       <template #header>
         <div class="flex items-center justify-between">
-          <h3 class="font-bold text-lg text-gray-800">{{ editingMode ? '编辑模式' : '沉浸阅读' }}</h3>
+          <div class="flex items-center gap-4">
+            <h3 class="font-bold text-lg text-gray-800">{{ editingMode ? '编辑模式' : '沉浸阅读' }}</h3>
+            <!-- 切换器：仅在查看模式且有附件时显示 -->
+            <el-radio-group v-if="!editingMode && editingCapsule.file_url" v-model="capsuleViewMode" size="small">
+              <el-radio-button label="file"><el-icon class="mr-1"><Document /></el-icon>原文件预览</el-radio-button>
+              <el-radio-button label="text"><el-icon class="mr-1"><DocumentCopy /></el-icon>解析文本</el-radio-button>
+            </el-radio-group>
+          </div>
           <div class="flex gap-2">
-            <el-button v-if="!editingMode" type="primary" plain size="small" @click="editingMode = true">
+            <el-button v-if="!editingMode" type="primary" plain size="small" @click="editingMode = true; capsuleViewMode = 'text'">
               <el-icon class="mr-1"><Edit /></el-icon> 编辑
             </el-button>
-            <el-button v-if="editingMode" type="info" plain size="small" @click="editingMode = false">
+            <el-button v-if="editingMode" type="info" plain size="small" @click="editingMode = false; capsuleViewMode = editingCapsule.file_url ? 'file' : 'text'">
               <el-icon class="mr-1"><Reading /></el-icon> 预览
             </el-button>
           </div>
@@ -174,17 +181,39 @@
           </div>
         </div>
 
-        <div v-else class="flex-1 overflow-auto custom-scrollbar bg-white">
-          <div class="max-w-4xl mx-auto px-8 py-10">
-            <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-gray-900 border-b pb-6">{{ editingCapsule.title }}</h1>
-            <div class="markdown-body text-lg leading-loose">
-              <Viewer
-                :value="editingCapsule.content"
-                :plugins="plugins"
-              />
-            </div>
-            <div class="mt-16 pt-8 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
-              记录于 {{ formatDate(editingCapsule.created_at) }}
+        <div v-else class="flex-1 flex flex-col min-h-0 bg-white">
+          <!-- 有文件附件且处于文件预览模式时渲染 -->
+          <div v-if="editingCapsule.file_url && capsuleViewMode === 'file'" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col h-full">
+            <template v-if="getFileType(editingCapsule.file_type) === 'pdf'">
+              <iframe :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full border-0"></iframe>
+            </template>
+            <template v-else-if="getFileType(editingCapsule.file_type) === 'docx'">
+              <vue-office-docx :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full" />
+            </template>
+            <template v-else-if="getFileType(editingCapsule.file_type) === 'excel'">
+              <vue-office-excel :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full" />
+            </template>
+            <template v-else-if="getFileType(editingCapsule.file_type) === 'pptx'">
+              <vue-office-pptx :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full" />
+            </template>
+            <template v-else>
+              <div class="p-8 text-center text-gray-500">该格式暂不支持直接预览，请<a :href="getFullUrl(editingCapsule.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
+            </template>
+          </div>
+
+          <!-- 解析文本模式 -->
+          <div v-else class="flex-1 overflow-auto custom-scrollbar">
+            <div class="max-w-4xl mx-auto px-8 py-10">
+              <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-gray-900 border-b pb-6">{{ editingCapsule.title }}</h1>
+              <div class="markdown-body text-lg leading-loose">
+                <Viewer
+                  :value="editingCapsule.content"
+                  :plugins="plugins"
+                />
+              </div>
+              <div class="mt-16 pt-8 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
+                记录于 {{ formatDate(editingCapsule.created_at) }}
+              </div>
             </div>
           </div>
         </div>
@@ -196,7 +225,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading } from '@element-plus/icons-vue'
+import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading, Document, DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import { marked } from 'marked'
@@ -213,7 +242,11 @@ import breaks from '@bytemd/plugin-breaks'
 import math from '@bytemd/plugin-math'
 import 'bytemd/dist/index.css'
 import 'highlight.js/styles/vs.css' 
-import 'juejin-markdown-themes/dist/juejin.min.css'
+import VueOfficeDocx from '@vue-office/docx'
+import VueOfficeExcel from '@vue-office/excel'
+import VueOfficePptx from '@vue-office/pptx'
+import '@vue-office/docx/lib/index.css'
+import '@vue-office/excel/lib/index.css'
 
 const plugins = [
   gfm(),
@@ -241,8 +274,24 @@ const highlightedCapsuleId = ref<number | null>(null)
 
 const detailDrawerVisible = ref(false)
 const editingMode = ref(false)
+const capsuleViewMode = ref('text') // 'text' or 'file'
 const isSavingEdit = ref(false)
 const editingCapsule = ref<any>({})
+
+const getFullUrl = (path: string) => {
+  if (!path) return ''
+  if (path.startsWith('http')) return path
+  return `http://localhost:8000${path}`
+}
+
+const getFileType = (type: string) => {
+  if (!type) return 'text'
+  if (type.includes('pdf')) return 'pdf'
+  if (type.includes('word') || type.includes('document')) return 'docx'
+  if (type.includes('excel') || type.includes('spreadsheet')) return 'excel'
+  if (type.includes('powerpoint') || type.includes('presentation')) return 'pptx'
+  return 'text'
+}
 
 const renderMarkdown = (text: string) => {
   if (!text) return ''
@@ -267,6 +316,7 @@ const handleCurrentChange = (val: number) => {
 const openCapsuleDetail = (cap: any, edit = false) => {
   editingCapsule.value = { ...cap }
   editingMode.value = edit
+  capsuleViewMode.value = cap.file_url && !edit ? 'file' : 'text'
   detailDrawerVisible.value = true
 }
 
