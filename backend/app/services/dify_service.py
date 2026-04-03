@@ -337,7 +337,24 @@ class DifyService:
             logger.error(f"Failed to extract keywords: {str(e)}")
             return []
 
-    async def global_chat_stream(self, query: str, conversation_id: str = ""):
+    async def upload_file_to_global_chat(self, file_bytes: bytes, filename: str, mime_type: str) -> dict:
+        """上传文件给全局问答 Chatbot 获取 file_id"""
+        if not self.global_chat_api_key:
+            raise Exception("DIFY_GLOBAL_CHAT_API_KEY is not set.")
+            
+        upload_endpoint = f"{self.api_url}/files/upload"
+        headers = {
+            "Authorization": f"Bearer {self.global_chat_api_key}"
+        }
+        files = {'file': (filename, file_bytes, mime_type)}
+        data = {'user': 'insight-graph-user'}
+        
+        async with httpx.AsyncClient() as client:
+            upload_res = await client.post(upload_endpoint, headers=headers, files=files, data=data, timeout=60.0)
+            upload_res.raise_for_status()
+            return upload_res.json()
+
+    async def global_chat_stream(self, query: str, conversation_id: str = "", files: list = None):
         """
         调用 Dify 的流式输出（Streaming）实现全局知识库问答
         """
@@ -356,7 +373,8 @@ class DifyService:
             "inputs": {},
             "query": query,
             "response_mode": "streaming",
-            "user": "insight-graph-user"
+            "user": "insight-graph-user",
+            "files": files or []
         }
         
         if conversation_id:

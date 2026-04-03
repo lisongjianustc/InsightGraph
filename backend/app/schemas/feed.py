@@ -25,9 +25,15 @@ class ChatHistorySync(BaseModel):
     conversation_id: Optional[str] = None
     history: list
 
+class ChatFile(BaseModel):
+    type: str
+    transfer_method: str = "local_file"
+    upload_file_id: str
+
 class GlobalChatRequest(BaseModel):
     query: str
     conversation_id: Optional[str] = ""
+    files: Optional[list[ChatFile]] = []
 
 class ChatRequest(BaseModel):
     feed_id: int

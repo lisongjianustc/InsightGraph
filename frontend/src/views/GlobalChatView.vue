@@ -63,15 +63,40 @@
     <!-- Input Area -->
     <div class="w-full max-w-4xl p-6 shrink-0 bg-white">
       <div class="relative shadow-sm rounded-xl border border-gray-200 bg-white overflow-hidden transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
+        <!-- Uploaded Files Preview -->
+        <div v-if="uploadedFiles.length > 0" class="flex flex-wrap gap-2 p-3 bg-gray-50 border-b border-gray-100">
+          <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center gap-1 bg-white border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-600 shadow-sm relative group">
+            <el-icon v-if="f.type === 'image'" class="text-blue-500"><Picture /></el-icon>
+            <el-icon v-else class="text-orange-500"><Document /></el-icon>
+            <span class="max-w-[100px] truncate" :title="f.name">{{ f.name }}</span>
+            <el-icon class="cursor-pointer text-gray-400 hover:text-red-500 ml-1" @click="removeFile(idx)"><Close /></el-icon>
+          </div>
+        </div>
+
         <el-input
           v-model="userInput"
           type="textarea"
           :rows="3"
-          placeholder="向你的专属知识库提问 (Shift + Enter 换行, Enter 发送)..."
+          placeholder="向你的专属知识库提问 (支持粘贴图文, Shift + Enter 换行)..."
           resize="none"
           class="chat-input"
           @keydown.enter.exact.prevent="sendMessage"
+          @paste="handlePaste"
         />
+        <div class="absolute bottom-2 left-2">
+          <el-upload
+            :action="`${API_BASE}/chat/upload`"
+            :show-file-list="false"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            :before-upload="beforeUpload"
+            name="file"
+          >
+            <el-button text circle size="small" :loading="isUploading" class="!text-gray-400 hover:!text-indigo-500">
+              <el-icon size="18"><Paperclip /></el-icon>
+            </el-button>
+          </el-upload>
+        </div>
         <div class="absolute bottom-2 right-2">
           <el-button 
             type="primary" 
@@ -93,9 +118,11 @@
 
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { ChatDotRound, ChatLineSquare, User, Cpu, Plus, Top, Loading, Link } from '@element-plus/icons-vue'
+import { ChatDotRound, ChatLineSquare, User, Cpu, Plus, Top, Loading, Link, Paperclip, Picture, Document, Close } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
 const API_BASE = 'http://localhost:8000/api'
 
@@ -113,8 +140,63 @@ interface Message {
 const messages = ref<Message[]>([])
 const userInput = ref('')
 const isTyping = ref(false)
+const isUploading = ref(false)
+const uploadedFiles = ref<{id: string, type: string, name: string}[]>([])
 const conversationId = ref('')
 const chatScrollRef = ref<HTMLElement | null>(null)
+
+const beforeUpload = () => {
+  isUploading.value = true
+  return true
+}
+
+const handleUploadSuccess = (response: any, file: any) => {
+  isUploading.value = false
+  if (response.status === 'success') {
+    uploadedFiles.value.push({
+      id: response.file_id,
+      type: response.type,
+      name: response.name || file.name
+    })
+  } else {
+    ElMessage.error(response.message || '文件上传失败')
+  }
+}
+
+const handleUploadError = (_error: any, file: any) => {
+  isUploading.value = false
+  ElMessage.error(`文件 ${file.name} 上传失败`)
+}
+
+const removeFile = (index: number) => {
+  uploadedFiles.value.splice(index, 1)
+}
+
+const handlePaste = async (e: ClipboardEvent) => {
+  const items = e.clipboardData?.items
+  if (!items) return
+
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.indexOf('image') !== -1 || items[i].type.indexOf('application/pdf') !== -1) {
+      const file = items[i].getAsFile()
+      if (file) {
+        e.preventDefault()
+        isUploading.value = true
+        const formData = new FormData()
+        formData.append('file', file)
+        try {
+          const res = await axios.post(`${API_BASE}/chat/upload`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
+          handleUploadSuccess(res.data, file)
+        } catch (error: any) {
+          handleUploadError(error, file)
+        }
+        break
+      }
+    }
+  }
+}
 
 const renderMarkdown = (text: string) => {
   if (!text) return ''
@@ -139,8 +221,22 @@ const sendMessage = async () => {
   if (!userInput.value.trim() || isTyping.value) return
   
   const query = userInput.value.trim()
-  messages.value.push({ role: 'user', content: query })
+  const filesToUpload = uploadedFiles.value.map(f => ({
+    type: f.type,
+    transfer_method: 'local_file',
+    upload_file_id: f.id
+  }))
+  
+  // Create user message content
+  let userDisplayContent = query
+  if (uploadedFiles.value.length > 0) {
+    const fileNames = uploadedFiles.value.map(f => `📎 ${f.name}`).join('\n')
+    userDisplayContent = `${fileNames}\n\n${query}`
+  }
+  
+  messages.value.push({ role: 'user', content: userDisplayContent })
   userInput.value = ''
+  uploadedFiles.value = [] // Clear uploaded files
   isTyping.value = true
   scrollToBottom()
 
@@ -156,7 +252,8 @@ const sendMessage = async () => {
       },
       body: JSON.stringify({
         query: query,
-        conversation_id: conversationId.value
+        conversation_id: conversationId.value,
+        files: filesToUpload
       })
     })
 

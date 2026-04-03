@@ -4,6 +4,8 @@ from app.core.database import get_db
 from app.models.graph import GraphNode, GraphEdge
 from app.services.graph_builder import build_graph_edges_for_node
 
+from app.models.feed import FeedItem
+
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
 @router.get("/data")
@@ -12,6 +14,10 @@ async def get_graph_data(db: Session = Depends(get_db)):
     nodes = db.query(GraphNode).all()
     edges = db.query(GraphEdge).all()
     
+    # 提取 original 类型的关联文献 URL
+    feeds = db.query(FeedItem.id, FeedItem.url).all()
+    feed_url_map = {f.id: f.url for f in feeds}
+    
     return {
         "nodes": [
             {
@@ -19,7 +25,8 @@ async def get_graph_data(db: Session = Depends(get_db)):
                 "name": n.title,
                 "type": n.node_type,
                 "content": n.content,
-                "ref_id": n.ref_id
+                "ref_id": n.ref_id,
+                "url": feed_url_map.get(n.ref_id) if n.node_type == 'original' else None
             } for n in nodes
         ],
         "edges": [

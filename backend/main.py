@@ -113,13 +113,37 @@ async def list_feeds(skip: int = 0, limit: int = 50, is_saved_to_kb: bool = None
     feeds = query.order_by(FeedItem.created_at.desc()).offset(skip).limit(limit).all()
     return feeds
 
+@app.post("/api/chat/upload")
+async def upload_global_chat_file(file: UploadFile = File(...)):
+    """
+    接收前端全局问答的多模态文件，上传到 Dify 并返回 file_id
+    """
+    content = await file.read()
+    try:
+        res = await dify_client.upload_file_to_global_chat(content, file.filename, file.content_type)
+        # 根据 mime_type 简单判断是图片还是文档
+        file_type = "image" if file.content_type and file.content_type.startswith("image/") else "document"
+        return {
+            "status": "success",
+            "file_id": res.get("id"),
+            "type": file_type,
+            "name": file.filename
+        }
+    except Exception as e:
+        logger.error(f"Failed to upload global chat file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/chat/global")
 async def global_chat(req: GlobalChatRequest):
     """
     提供给前端跨文档全局聊天的流式接口
     """
     return StreamingResponse(
-        dify_client.global_chat_stream(req.query, req.conversation_id),
+        dify_client.global_chat_stream(
+            req.query, 
+            req.conversation_id, 
+            [f.dict() for f in req.files] if req.files else []
+        ),
         media_type="text/event-stream"
     )
 

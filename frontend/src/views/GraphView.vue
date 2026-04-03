@@ -28,11 +28,8 @@
       <el-card shadow="hover" class="rounded-xl bg-white/90 backdrop-blur-sm border-0">
         <div class="text-sm font-bold text-gray-700 mb-2">节点类型</div>
         <div class="flex flex-col gap-2 text-xs">
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#3b82f6]"></span> 原文文档 (Original)</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#10b981]"></span> 泛读摘要 (Skim)</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#f59e0b]"></span> 精读对话 (Deep)</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#8b5cf6]"></span> 闪念胶囊 (Capsule)</div>
-          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#ef4444]"></span> 实体标签 (Tag)</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#ef4444]"></span> 实体概念 (Tag)</div>
+          <div class="text-gray-400 mt-1 italic">（点击概念展开相关文献与胶囊）</div>
         </div>
       </el-card>
     </div>
@@ -43,20 +40,32 @@
     <!-- 节点详情抽屉 -->
     <el-drawer
       v-model="drawerVisible"
-      :title="selectedNode?.name"
+      :title="`概念标签: ${selectedNode?.name}`"
       size="40%"
       destroy-on-close
     >
       <div class="p-4" v-if="selectedNode">
-        <div class="mb-4 flex gap-2">
-          <el-tag :type="getTagType(selectedNode.type)">{{ selectedNode.type.toUpperCase() }}</el-tag>
-          <el-tag type="info">ID: {{ selectedNode.id }}</el-tag>
+        <div class="mb-4">
+          <el-tag type="danger" effect="dark" size="large" class="font-bold text-lg"># {{ selectedNode.name }}</el-tag>
         </div>
         <div class="bg-gray-50 p-4 rounded-lg">
-          <h3 class="font-bold text-gray-700 mb-2">内容预览：</h3>
-          <div class="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed max-h-[60vh] overflow-y-auto custom-scrollbar">
-            {{ selectedNode.content || '无内容' }}
+          <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
+            <el-icon><Connection /></el-icon> 相关文献 / 胶囊 ({{ selectedNode.docs?.length || 0 }})
+          </h3>
+          <div v-if="selectedNode.docs?.length > 0" class="space-y-3">
+            <div v-for="(doc, index) in selectedNode.docs" :key="index" 
+                 class="bg-white p-3 rounded border border-gray-200 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer"
+                 @click="openDoc(doc)">
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug hover:text-indigo-600 transition-colors">{{ doc.name }}</span>
+                <el-tag :type="getTagType(doc.type)" size="small" class="shrink-0">{{ doc.type.toUpperCase() }}</el-tag>
+              </div>
+              <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-gray-500 line-clamp-3 bg-gray-50 p-2 rounded">
+                {{ doc.content }}
+              </div>
+            </div>
           </div>
+          <el-empty v-else description="暂无关联文档" :image-size="60" />
         </div>
       </div>
     </el-drawer>
@@ -97,6 +106,17 @@ const getTagType = (type: string) => {
   return 'info'
 }
 
+const openDoc = (doc: any) => {
+  if (doc.type === 'original' && doc.url) {
+    window.open(doc.url, '_blank')
+  } else if (doc.type === 'capsule') {
+    // Navigate to capsule view
+    window.open('/capsule', '_blank')
+  } else {
+    ElMessage.info('该类型节点暂不支持直接跳转')
+  }
+}
+
 const fetchGraphData = async () => {
   loading.value = true
   try {
@@ -135,27 +155,81 @@ const renderChart = (data: any) => {
     })
   }
 
-  const nodes = data.nodes.map((node: any) => ({
-    id: node.id,
-    name: node.type === 'tag' ? node.name : (node.name.length > 15 ? node.name.substring(0, 15) + '...' : node.name),
-    fullName: node.name,
-    type: node.type,
-    content: node.content,
-    symbolSize: node.type === 'tag' ? 20 : (node.type === 'original' ? 40 : 30),
-    itemStyle: {
-      color: colorMap[node.type] || '#9ca3af'
-    }
-  }))
+  const rawNodes = data.nodes || []
+  const rawEdges = data.edges || []
 
-  const edges = data.edges.map((edge: any) => ({
-    source: edge.source,
-    target: edge.target,
-    lineStyle: {
-      width: 2,
-      curveness: 0.2,
-      opacity: 0.7
+  // 1. Separate tags and documents
+  const tags = rawNodes.filter((n: any) => n.type === 'tag')
+  const docs = rawNodes.filter((n: any) => n.type !== 'tag')
+
+  // 2. Map doc ID -> doc Object
+  const docMap = new Map(docs.map((d: any) => [d.id, d]))
+
+  // 3. Map tag ID -> Array of related docs
+  const tagDocsMap = new Map()
+  tags.forEach((t: any) => tagDocsMap.set(t.id, []))
+
+  rawEdges.forEach((e: any) => {
+    const sourceIsTag = tagDocsMap.has(e.source)
+    const targetIsTag = tagDocsMap.has(e.target)
+
+    if (sourceIsTag && docMap.has(e.target)) {
+      tagDocsMap.get(e.source).push(docMap.get(e.target))
+    } else if (targetIsTag && docMap.has(e.source)) {
+      tagDocsMap.get(e.target).push(docMap.get(e.source))
     }
-  }))
+  })
+
+  // 4. Generate Tag-to-Tag co-occurrence edges
+  const tagEdges: any[] = []
+  const edgeSet = new Set()
+
+  docs.forEach((doc: any) => {
+    // Find all tags connected to this doc
+    const docTags = tags.filter((t: any) => {
+      const relatedDocs = tagDocsMap.get(t.id) || []
+      return relatedDocs.some((d: any) => d.id === doc.id)
+    })
+
+    // Create combinations of tags that share this doc
+    for (let i = 0; i < docTags.length; i++) {
+      for (let j = i + 1; j < docTags.length; j++) {
+        const t1 = docTags[i].id
+        const t2 = docTags[j].id
+        const key = t1 < t2 ? `${t1}-${t2}` : `${t2}-${t1}`
+        
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key)
+          tagEdges.push({
+            source: t1,
+            target: t2,
+            lineStyle: {
+              width: 1,
+              curveness: 0.1,
+              opacity: 0.2
+            }
+          })
+        }
+      }
+    }
+  })
+
+  // 5. Build final nodes (Only Tags)
+  const nodes = tags.map((node: any) => {
+    const relatedDocs = tagDocsMap.get(node.id) || []
+    return {
+      id: node.id,
+      name: node.name,
+      fullName: node.name,
+      type: node.type,
+      docs: relatedDocs,
+      // Node size based on how many docs are connected to this tag
+      symbolSize: 20 + Math.min(relatedDocs.length * 5, 40),
+      itemStyle: {
+        color: colorMap[node.type] || '#9ca3af'
+      }
+    }
+  })
 
   const option = {
     tooltip: {
@@ -171,7 +245,7 @@ const renderChart = (data: any) => {
         type: 'graph',
         layout: 'force',
         nodes: nodes,
-        edges: edges,
+        edges: tagEdges,
         roam: true,
         label: {
           show: true,
