@@ -116,6 +116,45 @@ async def search_external(
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
 
+@router.post("/import")
+async def import_search_result(req: ImportRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    将单条外部文献入库并触发处理
+    """
+    existing = db.query(FeedItem).filter(FeedItem.url == req.url).first()
+    if existing:
+        return {"status": "success", "message": "Already imported", "id": existing.id}
+        
+    new_item = FeedItem(
+        source="arxiv",
+        title=req.title,
+        content=req.summary,
+        url=req.url,
+        raw_data={"authors": req.authors}
+    )
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+    
+    # 异步生成摘要的闭包
+    async def generate_skim(item_id: int):
+        local_db = SessionLocal()
+        try:
+            item = local_db.query(FeedItem).filter(FeedItem.id == item_id).first()
+            if item:
+                safe_content = item.content.replace('\x00', '')
+                summary = await dify_client.get_skim_reading_summary(content=safe_content, title=item.title)
+                item.skim_summary = summary
+                local_db.commit()
+        except Exception as e:
+            logger.error(f"Failed to generate skim for imported item: {e}")
+        finally:
+            local_db.close()
+            
+    background_tasks.add_task(generate_skim, new_item.id)
+    
+    return {"status": "success", "message": "Imported successfully", "id": new_item.id}
+
 class ImportBatchRequest(BaseModel):
     items: list[ImportRequest]
 
@@ -155,7 +194,8 @@ async def import_batch_results(req: ImportBatchRequest, background_tasks: Backgr
             items = local_db.query(FeedItem).filter(FeedItem.id.in_(item_ids)).all()
             for item in items:
                 try:
-                    summary = await dify_client.get_skim_reading_summary(content=item.content, title=item.title)
+                    safe_content = item.content.replace('\x00', '')
+                    summary = await dify_client.get_skim_reading_summary(content=safe_content, title=item.title)
                     item.skim_summary = summary
                     local_db.commit()
                 except Exception as e:

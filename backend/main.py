@@ -170,7 +170,7 @@ async def retry_feed_processing(feed_id: int, background_tasks: BackgroundTasks,
             from app.utils.pdf_parser import fetch_arxiv_pdf_text
             full_text = await fetch_arxiv_pdf_text(feed_item.url)
             if full_text:
-                feed_item.full_text = full_text
+                feed_item.full_text = full_text.replace('\x00', '')
                 db.commit()
         except Exception as e:
             logger.error(f"Failed to retry fetching arxiv pdf: {e}")
@@ -180,8 +180,9 @@ async def retry_feed_processing(feed_id: int, background_tasks: BackgroundTasks,
     db.commit()
     
     # 3. 重新调用泛读生成
+    safe_content = (feed_item.full_text or feed_item.content).replace('\x00', '')
     summary = await dify_client.get_skim_reading_summary(
-        content=feed_item.full_text or feed_item.content,
+        content=safe_content,
         title=feed_item.title
     )
     
@@ -217,13 +218,14 @@ async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: S
             from app.utils.pdf_parser import fetch_arxiv_pdf_text
             full_text = await fetch_arxiv_pdf_text(feed_item.url)
             if full_text:
-                feed_item.full_text = full_text
+                feed_item.full_text = full_text.replace('\x00', '')
                 db.commit()
         except Exception as e:
             logger.error(f"Failed to fetch arxiv pdf text before saving to KB: {e}")
 
     # 构建发送给 Dify 的内容
-    content_to_save = f"# {feed_item.title}\n\n{feed_item.full_text or feed_item.content}\n\nSource URL: {feed_item.url}"
+    safe_text = (feed_item.full_text or feed_item.content).replace('\x00', '')
+    content_to_save = f"# {feed_item.title}\n\n{safe_text}\n\nSource URL: {feed_item.url}"
     
     # 异步调用 Dify
     logger.info(f"Triggering background task to save feed {feed_id} to Dify.")
