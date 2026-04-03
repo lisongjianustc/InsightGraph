@@ -92,19 +92,22 @@
           <el-card 
             v-for="cap in capsules" 
             :key="cap.id" 
-            shadow="never" 
-            class="rounded-lg border border-gray-100 hover:shadow-md transition-shadow group relative"
+            shadow="hover" 
+            class="rounded-lg border border-gray-100 hover:shadow-md transition-shadow group relative cursor-pointer"
+            @click="openCapsuleDetail(cap)"
           >
             <div class="flex justify-between items-start mb-2">
               <span class="text-xs text-gray-400 font-mono">{{ formatDate(cap.created_at) }}</span>
-              <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <el-button size="small" text type="primary" @click="openEditDialog(cap)"><el-icon><Edit /></el-icon></el-button>
+              <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
+                <el-button size="small" text type="primary" @click="openCapsuleDetail(cap, true)"><el-icon><Edit /></el-icon></el-button>
                 <el-button size="small" text type="danger" @click="confirmDelete(cap)"><el-icon><Delete /></el-icon></el-button>
                 <el-tag size="small" type="info" effect="plain">已入库</el-tag>
               </div>
             </div>
-            <div class="prose max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed text-sm break-words overflow-hidden" style="max-height: 300px; overflow-y: auto;">
-              {{ cap.content }}
+            <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed break-words overflow-hidden relative" style="max-height: 200px;">
+              <div v-html="renderMarkdown(cap.content)"></div>
+              <!-- 渐变遮罩 (用于内容过长时提示) -->
+              <div class="absolute bottom-0 left-0 w-full h-12 bg-gradient-to-t from-white to-transparent"></div>
             </div>
           </el-card>
         </div>
@@ -125,35 +128,70 @@
       </div>
     </div>
     
-    <!-- 编辑弹窗 -->
-    <el-dialog v-model="editDialogVisible" title="编辑胶囊" width="50%" destroy-on-close>
-      <div class="space-y-4">
-        <div>
-          <label class="text-sm font-medium text-gray-700 mb-1 block">标题 (可选)</label>
-          <el-input v-model="editingCapsule.title" placeholder="给胶囊起个名字..." />
+    <!-- 全屏查看/编辑抽屉 -->
+    <el-drawer
+      v-model="detailDrawerVisible"
+      :title="editingMode ? '编辑胶囊' : '查看胶囊'"
+      size="60%"
+      destroy-on-close
+      class="custom-drawer"
+    >
+      <template #header>
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-lg text-gray-800">{{ editingMode ? '编辑模式' : '沉浸阅读' }}</h3>
+          <div class="flex gap-2">
+            <el-button v-if="!editingMode" type="primary" plain size="small" @click="editingMode = true">
+              <el-icon class="mr-1"><Edit /></el-icon> 编辑
+            </el-button>
+            <el-button v-if="editingMode" type="info" plain size="small" @click="editingMode = false">
+              <el-icon class="mr-1"><Reading /></el-icon> 预览
+            </el-button>
+          </div>
         </div>
-        <div>
-          <label class="text-sm font-medium text-gray-700 mb-1 block">内容</label>
-          <el-input v-model="editingCapsule.content" type="textarea" :rows="10" placeholder="修改你的想法..." />
+      </template>
+
+      <div class="h-full flex flex-col p-2">
+        <div v-if="editingMode" class="flex-1 flex flex-col space-y-4">
+          <div class="shrink-0">
+            <el-input v-model="editingCapsule.title" placeholder="给胶囊起个名字 (可选)..." size="large" />
+          </div>
+          <div class="flex-1 min-h-0 relative">
+            <el-input 
+              v-model="editingCapsule.content" 
+              type="textarea" 
+              class="h-full custom-full-textarea"
+              placeholder="在此修改你的 Markdown 内容..." 
+            />
+          </div>
+          <div class="shrink-0 flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <el-button @click="detailDrawerVisible = false">取消</el-button>
+            <el-button type="primary" :loading="isSavingEdit" @click="saveEdit">
+              保存修改
+            </el-button>
+          </div>
+        </div>
+
+        <div v-else class="flex-1 overflow-auto custom-scrollbar">
+          <div class="max-w-4xl mx-auto px-4 py-6">
+            <h1 v-if="editingCapsule.title" class="text-3xl font-bold mb-6 text-gray-900 border-b pb-4">{{ editingCapsule.title }}</h1>
+            <div class="prose prose-indigo max-w-none prose-lg" v-html="renderMarkdown(editingCapsule.content)"></div>
+            <div class="mt-12 pt-6 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
+              记录于 {{ formatDate(editingCapsule.created_at) }}
+            </div>
+          </div>
         </div>
       </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="editDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="isSavingEdit" @click="saveEdit">
-            保存修改
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit } from '@element-plus/icons-vue'
+import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const API_BASE = 'http://localhost:8000/api'
 const uploadUrl = `${API_BASE}/capsules/upload`
@@ -168,9 +206,15 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const searchQuery = ref('')
 
-const editDialogVisible = ref(false)
+const detailDrawerVisible = ref(false)
+const editingMode = ref(false)
 const isSavingEdit = ref(false)
 const editingCapsule = ref<any>({})
+
+const renderMarkdown = (text: string) => {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked.parse(text) as string)
+}
 
 const handleSearch = () => {
   currentPage.value = 1
@@ -187,9 +231,10 @@ const handleCurrentChange = (val: number) => {
   fetchCapsules()
 }
 
-const openEditDialog = (cap: any) => {
+const openCapsuleDetail = (cap: any, edit = false) => {
   editingCapsule.value = { ...cap }
-  editDialogVisible.value = true
+  editingMode.value = edit
+  detailDrawerVisible.value = true
 }
 
 const saveEdit = async () => {
@@ -200,7 +245,7 @@ const saveEdit = async () => {
       title: editingCapsule.value.title || null
     })
     ElMessage.success('胶囊修改成功')
-    editDialogVisible.value = false
+    editingMode.value = false // return to view mode
     fetchCapsules()
   } catch (error) {
     ElMessage.error('修改失败')
@@ -370,5 +415,18 @@ onMounted(() => {
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
+}
+.custom-drawer .el-drawer__header {
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.custom-full-textarea :deep(.el-textarea__inner) {
+  height: 100% !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 16px;
+  border-radius: 8px;
 }
 </style>
