@@ -1,55 +1,91 @@
-# 🌌 InsightGraph
-
 <div align="center">
-  <img src="https://img.shields.io/badge/Vue-3.x-4fc08d?style=for-the-badge&logo=vue.js" alt="Vue 3" />
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/PostgreSQL-PgVector-336791?style=for-the-badge&logo=postgresql" alt="PgVector" />
-  <img src="https://img.shields.io/badge/Dify-LLM_Agent-1890ff?style=for-the-badge" alt="Dify" />
+  <img src="frontend/build/icon.png" width="160" height="160" alt="InsightGraph Logo" style="border-radius: 22.5%; box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 20px;">
+  
+  <h1>🌌 InsightGraph</h1>
+  
+  <p><b>一个高度智能化、自动化的个人第二大脑系统</b></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Vue-3.x-4fc08d?style=for-the-badge&logo=vue.js" alt="Vue 3" />
+    <img src="https://img.shields.io/badge/Electron-Desktop-47848f?style=for-the-badge&logo=electron" alt="Electron" />
+    <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi" alt="FastAPI" />
+    <img src="https://img.shields.io/badge/PostgreSQL-PgVector-336791?style=for-the-badge&logo=postgresql" alt="PgVector" />
+    <img src="https://img.shields.io/badge/Dify-LLM_Agent-1890ff?style=for-the-badge" alt="Dify" />
+  </p>
 </div>
 
 <br/>
 
-**InsightGraph** 是一个**高度智能化、自动化、且真正能将碎片信息“连接”起来的个人第二大脑系统**。它以大模型为核心，将前沿论文追踪、多模态闪念碎片收集、动态知识图谱构建以及全局跨文档检索问答完美融合于一体。
+> **不再让你的知识成为信息孤岛。**
+> 在 InsightGraph 里，每一篇论文、每一个截屏、每一闪而过的灵感，都将自动凝结成知识图谱中熠熠生辉的星辰，并随时等待你的召唤。通过前沿大模型与本地知识库的深度融合，InsightGraph 实现了从“信息收集”到“知识内化”的无缝闭环。
 
-不再让你的知识成为信息孤岛。在 InsightGraph 里，每一篇论文、每一个截屏、每一闪而过的灵感，都将自动凝结成知识图谱中熠熠生辉的星辰，并随时等待你的召唤。
+---
 
-## ✨ 核心特性 (Features)
+## ✨ 核心特性 (Core Features)
 
-### 1. 📡 知识发现 (Auto-Feed & Skim Reading)
-- **后台自动抓取**：基于 APScheduler 定时（默认每小时）扫描并拉取 arXiv 的前沿论文，或是其他 RSS 订阅源。
-- **一键泛读摘要**：系统自动调用 Dify 大模型，在几秒钟内将枯燥的长篇摘要提炼为 3 个最核心的要点（Key Takeaways），帮你实现一目十行的极速初筛。
-- **全文精读与翻译**：如果发现值得深挖的文献，点击即可调用大模型对其进行全文级别的深度解析、双语对照翻译，并永久落库至个人的 `ORIGINAL` 与 `DEEP` 知识库中。
-- **原生文件沉浸阅读**：对于抓取的论文或上传的文档，支持在系统中直接调起原生的高清 PDF/Word 预览，并提供“原文件 / 解析后纯文本”的丝滑一键切换功能。
+### 📡 知识发现 (Auto-Feed & Skim Reading)
+- **🤖 全自动信息聚合**：基于 APScheduler 定时扫描 arXiv 前沿论文或 RSS 订阅源。
+- **⚡ 一键泛读摘要**：调用 Dify 大模型，数秒内将万字长文提炼为 **3 个核心要点 (Key Takeaways)**，实现一目十行的极速初筛。
+- **📚 原生文件沉浸阅读**：一键拉起高清 PDF/Word 预览，并支持在“原文件排版”与“AI 解析文本”间丝滑切换。
 
-### 2. ⚡️ 闪念胶囊 (Multi-Modal Capsules)
-- 灵感一闪而过？随时在胶囊界面记下它！
-- **所见即所得的 Markdown 编辑器**：采用字节跳动开源的 ByteMD，支持 GitHub 风格语法、代码高亮和 LaTeX 数学公式实时渲染，打造极客级的沉浸式输入体验。
-- **全能文档解析**：支持直接将 **PDF、Word、Excel、PPT** 拖入浏览器，后端会自动抽取纯文本入库。
-- **多模态图像 OCR**：通过整合带有视觉能力的 Dify Chatbot 模型（如 Qwen-VL、Moondream），你甚至可以**直接 `Ctrl+V` 粘贴系统截图或图片**，大模型将自动提取其中的文本、表格甚至公式，生成精美的 Markdown 并与截图一同入库。
+### ⚡️ 闪念胶囊 (Multi-Modal Capsules)
+- **✍️ 所见即所得的极客编辑**：基于 ByteMD 打造的 Typora 级体验，支持 GitHub 风格语法、代码高亮与 LaTeX 公式实时渲染。
+- **📎 全能文档解析**：支持将 **PDF、Word、Excel、PPT** 直接拖入入库。
+- **👁️ 多模态视觉 OCR**：整合视觉大模型（如 Qwen-VL），支持 **`Ctrl+V` 直接粘贴图片**，自动提取表格、公式并生成精美 Markdown。
 
-### 3. 🌌 动态知识图谱 (Graph)
-- **概念级聚类**：这不仅仅是一堆连接线的毛线球。图谱中**只显示由 LLM 自动抽取的“核心专业概念（Tag）”节点**。
-- **引力连线**：当你保存的论文或胶囊包含相同的概念时，它们便会形成引力，自动将相关的标签聚拢。
-- **文献快捷穿梭**：点击图谱节点呼出关联文献列表，系统不仅支持一键跳转来源网页，当检测到本地存在对应文献附件时，更能直接为你拉起原生的 PDF 高清阅读器，无缝下钻知识。
+### 🌌 动态知识图谱 (Knowledge Graph)
+- **🧠 概念级高维聚类**：剔除无意义的连线，仅展示由 LLM 自动抽取的“核心专业概念”节点。
+- **🔗 万物引力连线**：文献与胶囊通过相同的概念自动聚拢，形成网状结构的知识图谱。
+- **🚀 快捷穿梭与下钻**：点击图谱节点，呼出关联文献列表，一键拉起原生 PDF 阅读器，无缝下钻知识。
 
-### 4. 🤖 跨源全局问答 (Global Chat)
-- **打通数据孤岛**：我们为你在 Dify 中配置了一个专属全局 Chatbot，它链接了你的“原文库”、“精读库”和“闪念胶囊库”。
-- **流式多模态交互**：采用极致流畅的 SSE (Server-Sent Events) 打字机响应。支持带附件（图文）上传提问。
-- **严格溯源**：机器人的每一个回答片段，都会在下方生成带有超链接的**引用来源（Citations）标签**，明确告诉你它是参考了你的哪一条胶囊或哪一篇文献得出的结论，杜绝幻觉！
+### 🤖 跨源全局问答 (Global Chat)
+- **💬 打通数据孤岛**：专属全局 Chatbot 穿透你的“原文库”、“精读库”和“闪念胶囊库”。
+- **⚡ 流式多模态交互**：极致流畅的 SSE 打字机响应，支持带附件/图文上传提问。
+- **🎯 严格溯源机制**：机器人的每一个结论都会生成带有超链接的**引用来源 (Citations)**，彻底杜绝大模型幻觉。
 
-### 5. 💻 桌面端体验 (Desktop App) [新!]
-- 支持通过 Electron 将完整的个人知识库打包为 macOS / Windows 原生独立应用。
-- 摆脱浏览器标签页的束缚，享受更纯粹、免干扰的第二大脑沉浸感，并拥有精心设计的科技风专属应用图标。
+### 💻 跨平台桌面端体验 (Desktop App)
+- **🍏 原生级桌面应用**：基于 Electron 打包，告别浏览器标签页的束缚，享受纯粹、免干扰的第二大脑沉浸感。
+- **🪟 独立窗口管理**：原生 PDF 独立窗口渲染、专属 Dock 图标、极致优雅的 UI 交互。
+
+---
+
+## 📸 界面纵览 (Showcase)
+
+*(提示：你可以在项目目录创建 `docs/images/` 文件夹，放入你真实的系统截图来替换下方的高质感预览图。)*
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <b>1. 🖥️ 桌面端沉浸阅读与编辑</b><br/>
+      <img src="https://images.unsplash.com/photo-1618477247222-accd0e1ae22d?auto=format&fit=crop&w=600&q=80" alt="Capsule Editor" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+    <td align="center" width="50%">
+      <b>2. 🌌 动态交互知识图谱</b><br/>
+      <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80" alt="Knowledge Graph" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <b>3. 📄 智能原文件/解析切换</b><br/>
+      <img src="https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80" alt="PDF Preview" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+    <td align="center" width="50%">
+      <b>4. 🤖 溯源级全局多模态问答</b><br/>
+      <img src="https://images.unsplash.com/photo-1655720828018-edd2daec9349?auto=format&fit=crop&w=600&q=80" alt="Global Chat" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## 🛠 技术架构 (Architecture)
 
-InsightGraph 的架构设计崇尚解耦与灵活性：
-- **前端 (Frontend)**: Vue 3 + TypeScript + Vite + TailwindCSS + Element Plus + ECharts (力引导图可视化)。
-- **后端核心 (Backend)**: FastAPI (Python) 提供极速并发的 REST API 与 SSE 流式数据推送。
-- **知识处理中枢 (Brain)**: **Dify**。所有的文本 Embedding 向量化、RAG 检索、图片 OCR 工作流以及 Chatbot 会话，均依托本地/云端的 Dify 实例来驱动大模型（支持 Ollama, OpenAI 等任意 LLM）。
-- **存储层 (Database)**: PostgreSQL + PgVector。存储应用级的关系数据以及知识图谱的节点（GraphNode）与边（GraphEdge）。
+InsightGraph 的架构设计崇尚解耦与极致的扩展性：
+- **Frontend**: Vue 3 + TypeScript + Vite + TailwindCSS + Element Plus + ECharts。
+- **Desktop**: Electron + Electron Builder。
+- **Backend**: FastAPI (Python) 提供极速并发的 REST API 与 SSE 流式数据推送。
+- **AI Brain**: **Dify**。所有的文本 Embedding 向量化、RAG 检索、图片 OCR 工作流以及 Chatbot 会话，均依托本地/云端的 Dify 实例驱动。
+- **Database**: PostgreSQL + PgVector。完美支持结构化关系数据与高维知识向量图谱。
 
 ---
 
@@ -58,7 +94,7 @@ InsightGraph 的架构设计崇尚解耦与灵活性：
 ### 前置要求
 1. 安装 **Docker** 和 **Docker Compose**。
 2. 确保你已经部署好了一个 **Dify** 实例（本地 Docker 或云端服务皆可）。
-3. 确保你已经安装了 Node.js（仅用于启动前端开发服务器）。
+3. 确保你已经安装了 Node.js（用于编译前端与打包 Electron）。
 
 ### 1. 环境变量配置
 在项目根目录创建 `.env` 文件，并填入你的 Dify API 凭证：
@@ -76,62 +112,36 @@ DIFY_OCR_WORKFLOW_API_KEY=app-xxxxxxxxxxxxxxxxx     # 带有视觉模型 (如 Qw
 DIFY_GLOBAL_CHAT_API_KEY=app-xxxxxxxxxxxxxxxxx      # 链接了全量知识库的综合全局问答助手
 ```
 
-### 2. 一键启动
-在 Mac 或 Linux 环境下，直接在根目录执行一键部署脚本：
+### 2. 一键启动后端
+在根目录执行一键部署脚本，或手动拉起 Docker：
 ```bash
-chmod +x setup.sh
-./setup.sh
+docker compose up -d --build
 ```
 
-如果你使用的是 Windows，或希望手动部署，请执行：
+### 3. 体验桌面端 App (推荐)
+想要获得最佳的“第二大脑”沉浸体验，请进入 `frontend` 目录并打包桌面应用：
 ```bash
-# 启动后端与数据库容器
-docker compose up -d --build
+cd frontend
+npm install
+npm run electron:build
+```
+*编译完成后，可在 `frontend/dist_electron/` 中找到你专属的独立 App 安装包！*
 
-# 安装并启动前端
+### 4. 体验网页端
+如果你更喜欢在浏览器中运行：
+```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-### 3. 访问应用
-- 前端交互界面：[http://localhost:5173](http://localhost:5173)
-- 后端 API 文档：[http://localhost:8000/docs](http://localhost:8000/docs)
-- (可选) Dify 后台：[http://localhost:5001](http://localhost:5001)
+打开浏览器访问 [http://localhost:5173](http://localhost:5173) 即可。
 
 ---
 
-## 📸 界面预览 (Screenshots)
-
-*(提示：你可以在此上传并将项目实际截图链接替换到下方)*
-
-<details>
-<summary><b>1. 知识发现 (Feed)</b> - 一键获取前沿论文泛读摘要</summary>
-<img src="https://via.placeholder.com/800x400.png?text=Feed+Screenshot" alt="Feed">
-</details>
-
-<details>
-<summary><b>2. 闪念胶囊 (Capsule)</b> - 拖拽多格式文档、直接粘贴图片 OCR 解析</summary>
-<img src="https://via.placeholder.com/800x400.png?text=Capsule+Screenshot" alt="Capsule">
-</details>
-
-<details>
-<summary><b>3. 知识图谱 (Graph)</b> - ECharts 力引导聚类，AI 动态生成概念定义与下钻</summary>
-<img src="https://via.placeholder.com/800x400.png?text=Graph+Screenshot" alt="Graph">
-</details>
-
-<details>
-<summary><b>4. 全局问答 (Chat)</b> - 多模态流式对话，穿透全库数据并严格附带溯源链接</summary>
-<img src="https://via.placeholder.com/800x400.png?text=Chat+Screenshot" alt="Chat">
-</details>
-
----
-
-## ⚙️ 设置与维护
-InsightGraph 提供了内置的 **[系统设置]** 页面，你可以：
-- 自由切换 **Dark Mode (深色模式)**，享受沉浸式阅读。
-- 一键手动触发后台 APScheduler 进行最新文献的抓取。
-- 可视化管理知识图谱标签：一键剔除大模型生成的冗余或错误标签。
+## ⚙️ 系统维护与自定义
+- **深色模式 (Dark Mode)**：在系统设置中一键切换，享受暗夜沉浸阅读。
+- **数据抓取调度**：支持在 UI 界面手动触发 APScheduler，立即拉取 arXiv 最新文献。
+- **知识图谱修剪**：可视化管理标签库，一键剔除大模型生成的冗余节点，保持图谱纯净。
 
 ## 📄 License
 MIT License
