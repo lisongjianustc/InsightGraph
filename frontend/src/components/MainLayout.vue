@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { Connection, Document, ChatDotRound, Setting, MagicStick, Share } from '@element-plus/icons-vue'
+import { Connection, Document, ChatDotRound, Setting, MagicStick, Share, Search } from '@element-plus/icons-vue'
 
 const route = useRoute()
 </script>
@@ -38,6 +38,13 @@ const route = useRoute()
           <el-icon><Share /></el-icon>
           知识图谱 (Graph)
         </router-link>
+
+        <router-link to="/search" 
+          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
+          :class="route.path === '/search' ? 'bg-orange-50 text-orange-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
+          <el-icon><Search /></el-icon>
+          文献检索 (Search)
+        </router-link>
         
         <!-- 预留其他菜单 -->
         <router-link to="/chat" 
@@ -71,6 +78,7 @@ const route = useRoute()
           <template v-if="route.name === 'feed'">知识发现</template>
           <template v-else-if="route.name === 'capsule'">闪念胶囊</template>
           <template v-else-if="route.name === 'graph'">知识图谱</template>
+          <template v-else-if="route.name === 'search'">文献检索</template>
           <template v-else-if="route.name === 'chat'">全局问答</template>
           <template v-else>InsightGraph</template>
         </h2>

@@ -5,6 +5,7 @@ import CapsuleView from '../views/CapsuleView.vue'
 import GraphView from '../views/GraphView.vue'
 import GlobalChatView from '../views/GlobalChatView.vue'
 import SettingsView from '../views/SettingsView.vue'
+import SearchView from '../views/SearchView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -32,6 +33,11 @@ const router = createRouter({
           path: 'chat',
           name: 'chat',
           component: GlobalChatView
+        },
+        {
+          path: 'search',
+          name: 'search',
+          component: SearchView
         },
         {
           path: 'settings',

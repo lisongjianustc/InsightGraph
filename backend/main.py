@@ -14,7 +14,7 @@ from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
 from app.utils.file_parser import parse_file_to_text
-from app.routers import graph
+from app.routers import graph, search
 from app.services.graph_builder import build_graph_edges_for_node
 
 # 自动创建数据库表（生产环境建议使用 Alembic 迁移）
@@ -68,6 +68,7 @@ app.add_middleware(
 )
 
 app.include_router(graph.router)
+app.include_router(search.router)
 
 # 确保存放 PDF 的目录存在
 os.makedirs("data/pdfs", exist_ok=True)
