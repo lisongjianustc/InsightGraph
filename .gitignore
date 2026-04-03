@@ -52,6 +52,19 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Internal Design & Development Docs
+doc/InsightGraph_PRD.md
+doc/InsightGraph_Detailed_Development_Playbook.md
+doc/Stage1_Scope_Freeze.md
+doc/Stage1_Benchmark.md
+doc/InsightGraph_Feasibility_Assessment.md
+doc/InsightGraph_Design_Plan.md
+doc/InsightGraph_USD.md
+doc/InsightGraph\ 开发交接文档\ \(Handover\ Document\).md
+DEVELOPMENT_PLAN.md
+ITERATION_PLAN.md
+ollama_ocr_guide.md
+
 # Project specific
 data/
 *.pdf
