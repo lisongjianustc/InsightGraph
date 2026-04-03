@@ -75,14 +75,35 @@
           </h3>
           <div v-if="selectedNode.docs?.length > 0" class="space-y-3">
             <div v-for="(doc, index) in selectedNode.docs" :key="index" 
-                 class="bg-white p-3 rounded border border-gray-200 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer"
-                 @click="openDoc(doc)">
+                 class="bg-white p-3 rounded border border-gray-200 shadow-sm transition-colors"
+                 :class="{'hover:border-indigo-300 cursor-pointer': doc.type === 'skim' || doc.type === 'deep'}"
+                 @click="(doc.type === 'skim' || doc.type === 'deep') ? openDoc(doc) : null">
               <div class="flex items-start justify-between gap-2">
-                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug hover:text-indigo-600 transition-colors">{{ doc.name }}</span>
+                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug transition-colors" :class="{'hover:text-indigo-600': doc.type === 'skim' || doc.type === 'deep'}">{{ doc.name }}</span>
                 <el-tag :type="getTagType(doc.type)" size="small" class="shrink-0">{{ doc.type.toUpperCase() }}</el-tag>
               </div>
-              <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-gray-500 line-clamp-3 bg-gray-50 p-2 rounded">
+              <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-gray-500 line-clamp-3 bg-gray-50 p-2 rounded cursor-pointer hover:bg-gray-100 transition-colors" @click="openDoc(doc)">
                 {{ doc.content }}
+              </div>
+              
+              <!-- 胶囊/原文类型的操作栏 -->
+              <div v-if="doc.type === 'capsule' || doc.type === 'original'" class="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                <template v-if="doc.type === 'original'">
+                  <el-button v-if="doc.url" size="small" text bg type="primary" @click="openDoc(doc, 'url')">
+                    <el-icon class="mr-1"><Link /></el-icon>查看来源网页
+                  </el-button>
+                  <el-button v-if="doc.pdf_url" size="small" text bg type="warning" @click="openDoc(doc, 'pdf')">
+                    <el-icon class="mr-1"><Document /></el-icon>打开原PDF
+                  </el-button>
+                </template>
+                <template v-if="doc.type === 'capsule'">
+                  <el-button size="small" text bg type="primary" @click="openDoc(doc)">
+                    <el-icon class="mr-1"><Link /></el-icon>查看胶囊
+                  </el-button>
+                  <el-button v-if="doc.file_url" size="small" text bg type="warning" @click="openDoc(doc, 'pdf')">
+                    <el-icon class="mr-1"><Document /></el-icon>打开原文件
+                  </el-button>
+                </template>
               </div>
             </div>
           </div>
@@ -110,7 +131,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, markRaw } from 'vue'
-import { Connection, Refresh, MagicStick, InfoFilled, Loading } from '@element-plus/icons-vue'
+import { Connection, Refresh, MagicStick, InfoFilled, Loading, Link, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
@@ -153,12 +174,22 @@ const getTagType = (type: string) => {
   return 'info'
 }
 
-const openDoc = (doc: any) => {
-  if (doc.type === 'original' && doc.url) {
-    window.open(doc.url, '_blank')
+const openDoc = (doc: any, action?: string) => {
+  if (doc.type === 'original') {
+    if (action === 'pdf' && doc.pdf_url) {
+      window.open(doc.pdf_url, '_blank')
+    } else if (doc.url) {
+      window.open(doc.url, '_blank')
+    }
   } else if (doc.type === 'capsule') {
-    // Navigate to capsule view and auto-highlight
-    window.open(`/capsule?highlight_id=${doc.ref_id}`, '_blank')
+    if (action === 'pdf' && doc.file_url) {
+      // 如果直接打开原文件，拼接完整路径
+      const fileUrl = doc.file_url.startsWith('http') ? doc.file_url : `${API_BASE.replace('/api', '')}${doc.file_url}`
+      window.open(fileUrl, '_blank')
+    } else {
+      // Navigate to capsule view and auto-highlight
+      window.open(`/capsule?highlight_id=${doc.ref_id}`, '_blank')
+    }
   } else if (doc.type === 'skim' || doc.type === 'deep') {
     knowledgeDialogData.value = doc
     knowledgeDialogVisible.value = true

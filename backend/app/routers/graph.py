@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.graph import GraphNode, GraphEdge
 from app.services.graph_builder import build_graph_edges_for_node
-
 from app.models.feed import FeedItem
+from app.models.capsule import Capsule
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
@@ -14,9 +14,20 @@ async def get_graph_data(db: Session = Depends(get_db)):
     nodes = db.query(GraphNode).all()
     edges = db.query(GraphEdge).all()
     
-    # 提取 original 类型的关联文献 URL
+    # 提取 original 类型的关联文献 URL 和 capsule 类型的 file_url
     feeds = db.query(FeedItem.id, FeedItem.url).all()
     feed_url_map = {f.id: f.url for f in feeds}
+    
+    capsules = db.query(Capsule.id, Capsule.file_url).all()
+    capsule_file_map = {c.id: c.file_url for c in capsules}
+    
+    def get_pdf_url(url: str):
+        if not url: return None
+        if "arxiv.org/abs/" in url:
+            return url.replace("arxiv.org/abs/", "arxiv.org/pdf/") + ".pdf"
+        elif "arxiv.org/pdf/" in url or url.endswith(".pdf"):
+            return url
+        return None
     
     return {
         "nodes": [
@@ -26,7 +37,9 @@ async def get_graph_data(db: Session = Depends(get_db)):
                 "type": n.node_type,
                 "content": n.content,
                 "ref_id": n.ref_id,
-                "url": feed_url_map.get(n.ref_id) if n.node_type == 'original' else None
+                "url": feed_url_map.get(n.ref_id) if n.node_type == 'original' else None,
+                "pdf_url": get_pdf_url(feed_url_map.get(n.ref_id)) if n.node_type == 'original' else None,
+                "file_url": capsule_file_map.get(n.ref_id) if n.node_type == 'capsule' else None
             } for n in nodes
         ],
         "edges": [
