@@ -26,7 +26,7 @@ const getFileType = (type: string) => {
   return 'text'
 }
 
-const API_BASE = '/api'
+const API_BASE = 'http://localhost:8000/api'
 
 const renderMarkdown = (text: string) => {
   if (!text) return ''
