@@ -9,7 +9,7 @@
       <div class="flex gap-4">
         <el-input
           v-model="searchQuery"
-          placeholder="输入关键词、作者或领域 (如: 'large language models' 或 'au:bengio')..."
+          placeholder="输入研究方向或关键词 (例如: deep learning)..."
           size="large"
           clearable
           @keyup.enter="handleSearch"
@@ -25,7 +25,7 @@
       </div>
       <p class="text-xs text-gray-400 mt-3 flex items-center gap-1">
         <el-icon><InfoFilled /></el-icon>
-        支持 arXiv API 语法，检索结果可以直接加入并触发精读
+        可直接输入自然语言，后台自动转换。也支持 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
       </p>
     </div>
 
