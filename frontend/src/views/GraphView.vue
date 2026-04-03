@@ -48,6 +48,20 @@
         <div class="mb-4">
           <el-tag type="danger" effect="dark" size="large" class="font-bold text-lg"># {{ selectedNode.name }}</el-tag>
         </div>
+
+        <!-- 概念释义区 -->
+        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg mb-4">
+          <h3 class="font-bold text-indigo-800 mb-2 flex items-center gap-2">
+            <el-icon><InfoFilled /></el-icon> 概念释义
+          </h3>
+          <div v-if="loadingDefinition" class="flex items-center gap-2 text-indigo-400 text-sm py-2">
+            <el-icon class="is-loading"><Loading /></el-icon> 正在由 AI 生成专业释义...
+          </div>
+          <div v-else class="text-sm text-indigo-900 leading-relaxed whitespace-pre-wrap">
+            {{ tagDefinition || '暂无释义' }}
+          </div>
+        </div>
+
         <div class="bg-gray-50 p-4 rounded-lg">
           <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
             <el-icon><Connection /></el-icon> 相关文献 / 胶囊 ({{ selectedNode.docs?.length || 0 }})
@@ -74,7 +88,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, markRaw } from 'vue'
-import { Connection, Refresh, MagicStick } from '@element-plus/icons-vue'
+import { Connection, Refresh, MagicStick, InfoFilled, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
@@ -88,6 +102,8 @@ const building = ref(false)
 
 const drawerVisible = ref(false)
 const selectedNode = ref<any>(null)
+const tagDefinition = ref('')
+const loadingDefinition = ref(false)
 
 // 颜色映射
 const colorMap: Record<string, string> = {
@@ -114,6 +130,24 @@ const openDoc = (doc: any) => {
     window.open('/capsule', '_blank')
   } else {
     ElMessage.info('该类型节点暂不支持直接跳转')
+  }
+}
+
+const fetchTagDefinition = async (node: any) => {
+  if (node.content && !node.content.startsWith('Tag:')) {
+    tagDefinition.value = node.content
+    return
+  }
+  loadingDefinition.value = true
+  tagDefinition.value = ''
+  try {
+    const res = await axios.get(`${API_BASE}/graph/tag/${node.id}/definition`)
+    tagDefinition.value = res.data.definition
+    node.content = res.data.definition // update local cache
+  } catch (error) {
+    tagDefinition.value = '获取定义失败，请检查网络或 Dify 配置'
+  } finally {
+    loadingDefinition.value = false
   }
 }
 
@@ -151,6 +185,7 @@ const renderChart = (data: any) => {
       if (params.dataType === 'node') {
         selectedNode.value = params.data
         drawerVisible.value = true
+        fetchTagDefinition(params.data)
       }
     })
   }

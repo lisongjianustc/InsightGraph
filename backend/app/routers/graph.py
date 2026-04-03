@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.graph import GraphNode, GraphEdge
@@ -38,6 +38,20 @@ async def get_graph_data(db: Session = Depends(get_db)):
         ]
     }
 
+@router.get("/tag/{tag_id}/definition")
+async def get_tag_definition(tag_id: int, db: Session = Depends(get_db)):
+    """获取或动态生成标签的专业定义"""
+    node = db.query(GraphNode).filter(GraphNode.id == tag_id, GraphNode.node_type == 'tag').first()
+    if not node:
+        raise HTTPException(status_code=404, detail="Tag not found")
+        
+    if not node.content or node.content.startswith("Tag:"):
+        # Call Dify to generate definition dynamically
+        from app.services.dify_service import dify_client
+        definition = await dify_client.generate_tag_definition(node.title)
+        node.content = definition
+        db.commit()
+        
 @router.post("/build")
 async def build_all_graph_edges(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """为没有边的实体节点建立关键词关联 (仅为已有数据补全)"""

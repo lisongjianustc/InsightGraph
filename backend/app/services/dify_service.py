@@ -391,6 +391,33 @@ class DifyService:
             yield f'data: {{"event": "message", "answer": "\\n\\n**[连接错误]**：{str(e)}"}}\n\n'
             yield 'data: {"event": "message_end"}\n\n'
 
+    async def generate_tag_definition(self, tag_name: str) -> str:
+        """调用大模型生成标签的专业定义"""
+        if not self.reader_api_key:
+            return "暂无定义（未配置 DIFY_READER_API_KEY）"
+            
+        endpoint = f"{self.api_url}/chat-messages"
+        headers = {
+            "Authorization": f"Bearer {self.reader_api_key}",
+            "Content-Type": "application/json"
+        }
+        query = f"请简明扼要地解释以下专业名词或概念的定义与核心含义（50-150字内）：{tag_name}"
+        payload = {
+            "inputs": {},
+            "query": query,
+            "response_mode": "blocking",
+            "user": "insight-graph-user"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
+                response.raise_for_status()
+                return response.json().get("answer", "无法获取定义。").strip()
+        except Exception as e:
+            logger.error(f"Failed to generate definition for {tag_name}: {e}")
+            return "获取定义失败。"
+
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
         根据不同的分类获取对应的 Dataset ID。
