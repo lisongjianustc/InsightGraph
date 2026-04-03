@@ -129,6 +129,21 @@
           </div>
         </el-card>
       </div>
+      
+      <!-- 加载更多按钮 -->
+      <div v-if="results.length > 0" class="flex justify-center mt-6">
+        <el-button 
+          plain
+          round
+          size="large"
+          class="w-48 text-gray-500 border-gray-300 hover:text-orange-500 hover:border-orange-500"
+          :loading="isLoadingMore" 
+          @click="loadMoreResults"
+        >
+          <el-icon class="mr-1"><Download /></el-icon>
+          加载更多文献
+        </el-button>
+      </div>
     </div>
     
     <!-- 悬浮批量操作栏 -->
@@ -450,9 +465,11 @@ import DOMPurify from 'dompurify'
 const API_BASE = 'http://localhost:8000/api'
 
 const searchQuery = ref('')
-const sortBy = ref('submittedDate')
+const sortBy = ref('relevance')
 const sortOrder = ref('descending')
 const isSearching = ref(false)
+const isLoadingMore = ref(false)
+const currentStart = ref(0)
 const hasSearched = ref(false)
 const results = ref<any[]>([])
 
@@ -549,6 +566,7 @@ const handleSearch = async () => {
   
   isSearching.value = true
   hasSearched.value = true
+  currentStart.value = 0
   results.value = []
   
   try {
@@ -556,6 +574,7 @@ const handleSearch = async () => {
     const res = await axios.get(`${API_BASE}/search/external`, {
       params: { 
         query, 
+        start: currentStart.value,
         max_results: 15,
         sort_by: 'relevance',
         sort_order: 'descending'
@@ -579,6 +598,49 @@ const handleSearch = async () => {
     ElMessage.error('检索失败，请检查网络或稍后重试')
   } finally {
     isSearching.value = false
+  }
+}
+
+const loadMoreResults = async () => {
+  const query = searchQuery.value.trim()
+  if (!query) return
+  
+  isLoadingMore.value = true
+  currentStart.value += 15
+  
+  try {
+    const res = await axios.get(`${API_BASE}/search/external`, {
+      params: { 
+        query, 
+        start: currentStart.value,
+        max_results: 15,
+        sort_by: 'relevance',
+        sort_order: 'descending'
+      }
+    })
+    
+    if (res.data.length === 0) {
+      ElMessage.info('没有更多文献了')
+      return
+    }
+    
+    const newDataWithSelection = res.data.map((item: any) => ({
+      ...item,
+      selected: false
+    }))
+    
+    originalResults.value.push(...newDataWithSelection)
+    results.value.push(...newDataWithSelection)
+    
+    // 如果当前有特殊排序，重新排一下
+    if (sortBy.value !== 'relevance' || sortOrder.value !== 'descending') {
+      sortResults()
+    }
+  } catch (error) {
+    ElMessage.error('加载更多失败，请检查网络或稍后重试')
+    currentStart.value -= 15 // 回滚
+  } finally {
+    isLoadingMore.value = false
   }
 }
 

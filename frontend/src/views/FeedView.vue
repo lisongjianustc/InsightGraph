@@ -8,6 +8,8 @@ const API_BASE = '/api'
 
 const dailyReview = ref<any>(null)
 const dailyReviewLoading = ref(false)
+const reviewCapsuleDialogVisible = ref(false)
+const reviewCapsuleData = ref<any>(null)
 
 const fetchDailyReview = async () => {
   dailyReviewLoading.value = true
@@ -20,6 +22,23 @@ const fetchDailyReview = async () => {
     console.error('获取温故卡片失败', error)
   } finally {
     dailyReviewLoading.value = false
+  }
+}
+
+const handleDailyReviewClick = async () => {
+  if (!dailyReview.value) return
+  if (dailyReview.value.type === 'capsule') {
+    reviewCapsuleData.value = dailyReview.value.data
+    reviewCapsuleDialogVisible.value = true
+  } else if (dailyReview.value.type === 'feed') {
+    try {
+      const res = await axios.get(`${API_BASE}/feed/${dailyReview.value.data.id}`)
+      if (res.data) {
+        openDeepReadDrawer(res.data)
+      }
+    } catch (error) {
+      ElMessage.error('无法加载该文献信息')
+    }
   }
 }
 
@@ -612,7 +631,7 @@ onMounted(() => {
 
     <!-- 每日温故小卡片 -->
     <div v-if="dailyReview" class="mb-6">
-      <el-card shadow="hover" class="rounded-xl border-0 bg-gradient-to-r from-amber-50 to-orange-50 relative overflow-hidden">
+      <el-card shadow="hover" class="rounded-xl border-0 bg-gradient-to-r from-amber-50 to-orange-50 relative overflow-hidden cursor-pointer transition-transform hover:-translate-y-1" @click="handleDailyReviewClick">
         <div class="absolute -right-4 -top-4 opacity-10">
           <el-icon :size="100"><Sunny /></el-icon>
         </div>
@@ -730,6 +749,22 @@ onMounted(() => {
         </div>
       </template>
     </el-skeleton>
+
+    <!-- 每日温故：闪念胶囊弹窗 -->
+    <el-dialog
+      v-model="reviewCapsuleDialogVisible"
+      title="💊 闪念胶囊 (Capsule)"
+      width="50%"
+      destroy-on-close
+    >
+      <div v-if="reviewCapsuleData" class="mb-4">
+        <h4 class="font-bold text-gray-800 text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
+        <div class="text-xs text-gray-400 mb-4">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
+        <div class="prose max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-6 rounded-lg border border-gray-100">
+          {{ reviewCapsuleData.content }}
+        </div>
+      </div>
+    </el-dialog>
 
     <!-- 泛读模式弹窗 -->
     <el-dialog

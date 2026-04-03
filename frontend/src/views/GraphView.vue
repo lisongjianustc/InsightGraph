@@ -133,8 +133,8 @@ const openDoc = (doc: any) => {
   if (doc.type === 'original' && doc.url) {
     window.open(doc.url, '_blank')
   } else if (doc.type === 'capsule') {
-    // Navigate to capsule view
-    window.open('/capsule', '_blank')
+    // Navigate to capsule view and auto-highlight
+    window.open(`/capsule?highlight_id=${doc.ref_id}`, '_blank')
   } else {
     ElMessage.info('该类型节点暂不支持直接跳转')
   }

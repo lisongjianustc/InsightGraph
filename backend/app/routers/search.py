@@ -52,6 +52,7 @@ def build_arxiv_query(user_query: str) -> str:
 @router.get("/external")
 async def search_external(
     query: str, 
+    start: int = 0,
     max_results: int = 10, 
     sort_by: str = "submittedDate", 
     sort_order: str = "descending", 
@@ -59,7 +60,7 @@ async def search_external(
 ):
     """
     通过 arXiv API 主动按条件检索文献
-    支持自定义排序依据和排序顺序
+    支持自定义排序依据、排序顺序和分页
     """
     if not query:
         return []
@@ -69,7 +70,7 @@ async def search_external(
         if not safe_query:
             return []
             
-        url = f"http://export.arxiv.org/api/query?search_query={safe_query}&sortBy={sort_by}&sortOrder={sort_order}&max_results={max_results}"
+        url = f"http://export.arxiv.org/api/query?search_query={safe_query}&start={start}&sortBy={sort_by}&sortOrder={sort_order}&max_results={max_results}"
         
         logger.info(f"Searching arXiv: {url}")
         feed = feedparser.parse(url)

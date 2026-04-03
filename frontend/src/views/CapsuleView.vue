@@ -92,8 +92,10 @@
           <el-card 
             v-for="cap in capsules" 
             :key="cap.id" 
+            :id="'capsule-' + cap.id"
             shadow="hover" 
-            class="rounded-lg border border-gray-100 hover:shadow-md transition-shadow group relative cursor-pointer"
+            class="rounded-lg border border-gray-100 hover:shadow-md transition-all group relative cursor-pointer"
+            :class="{'highlight-flash': highlightedCapsuleId === cap.id}"
             @click="openCapsuleDetail(cap)"
           >
             <div class="flex justify-between items-start mb-2">
@@ -186,12 +188,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+
+const route = useRoute()
+const router = useRouter()
 
 const API_BASE = 'http://localhost:8000/api'
 const uploadUrl = `${API_BASE}/capsules/upload`
@@ -205,6 +211,7 @@ const totalCapsules = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const searchQuery = ref('')
+const highlightedCapsuleId = ref<number | null>(null)
 
 const detailDrawerVisible = ref(false)
 const editingMode = ref(false)
@@ -311,6 +318,23 @@ const fetchCapsules = async () => {
     } else {
       capsules.value = res.data.items
       totalCapsules.value = res.data.total
+    }
+    
+    // Check for highlight parameter
+    if (route.query.highlight_id) {
+      highlightedCapsuleId.value = parseInt(route.query.highlight_id as string)
+      nextTick(() => {
+        const el = document.getElementById('capsule-' + highlightedCapsuleId.value)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          // Remove query param without refreshing
+          router.replace({ query: {} })
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            highlightedCapsuleId.value = null
+          }, 3000)
+        }
+      })
     }
   } catch (error) {
     ElMessage.error('获取历史记录失败')
@@ -428,5 +452,16 @@ onMounted(() => {
   line-height: 1.6;
   padding: 16px;
   border-radius: 8px;
+}
+</style>
+<style>
+@keyframes flashHighlight {
+  0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); border-color: #f97316; }
+  50% { box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); border-color: #f97316; }
+  100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+}
+.highlight-flash {
+  animation: flashHighlight 1.5s ease-out 2;
+  border-color: #f97316 !important;
 }
 </style>
