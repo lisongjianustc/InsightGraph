@@ -90,6 +90,21 @@
         </div>
       </div>
     </el-drawer>
+
+    <!-- 知识沉淀卡片 (用于展示精读/泛读节点详情) -->
+    <el-dialog
+      v-model="knowledgeDialogVisible"
+      :title="knowledgeDialogData?.type === 'skim' ? '📖 泛读沉淀' : '🧠 精读知识点'"
+      width="60%"
+      destroy-on-close
+      class="knowledge-dialog"
+    >
+      <div v-if="knowledgeDialogData" class="knowledge-card">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">{{ knowledgeDialogData.name }}</h2>
+        <div class="prose max-w-none prose-lg text-gray-700 leading-relaxed bg-orange-50/30 p-8 rounded-xl border border-orange-100 shadow-inner whitespace-pre-wrap" v-html="renderMarkdown(knowledgeDialogData.content)">
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -99,6 +114,8 @@ import { Connection, Refresh, MagicStick, InfoFilled, Loading } from '@element-p
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import axios from 'axios'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 const API_BASE = 'http://localhost:8000/api'
 const chartRef = ref<HTMLElement | null>(null)
@@ -106,6 +123,13 @@ let chartInstance: echarts.ECharts | null = null
 
 const loading = ref(false)
 const building = ref(false)
+const knowledgeDialogVisible = ref(false)
+const knowledgeDialogData = ref<any>(null)
+
+const renderMarkdown = (text: string) => {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked.parse(text) as string)
+}
 
 const drawerVisible = ref(false)
 const selectedNode = ref<any>(null)
@@ -135,6 +159,9 @@ const openDoc = (doc: any) => {
   } else if (doc.type === 'capsule') {
     // Navigate to capsule view and auto-highlight
     window.open(`/capsule?highlight_id=${doc.ref_id}`, '_blank')
+  } else if (doc.type === 'skim' || doc.type === 'deep') {
+    knowledgeDialogData.value = doc
+    knowledgeDialogVisible.value = true
   } else {
     ElMessage.info('该类型节点暂不支持直接跳转')
   }

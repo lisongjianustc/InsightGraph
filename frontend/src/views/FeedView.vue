@@ -3,8 +3,35 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled, Sunny } from '@element-plus/icons-vue'
+import DOMPurify from 'dompurify'
+import { marked } from 'marked'
+import VueOfficeDocx from '@vue-office/docx'
+import VueOfficeExcel from '@vue-office/excel'
+import VueOfficePptx from '@vue-office/pptx'
+import '@vue-office/docx/lib/index.css'
+import '@vue-office/excel/lib/index.css'
+
+const getFullUrl = (path: string) => {
+  if (!path) return ''
+  if (path.startsWith('http')) return path
+  return `http://localhost:8000${path}`
+}
+
+const getFileType = (type: string) => {
+  if (!type) return 'text'
+  if (type.includes('pdf')) return 'pdf'
+  if (type.includes('word') || type.includes('document')) return 'docx'
+  if (type.includes('excel') || type.includes('spreadsheet')) return 'excel'
+  if (type.includes('powerpoint') || type.includes('presentation')) return 'pptx'
+  return 'text'
+}
 
 const API_BASE = '/api'
+
+const renderMarkdown = (text: string) => {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked.parse(text) as string)
+}
 
 const dailyReview = ref<any>(null)
 const dailyReviewLoading = ref(false)
@@ -754,15 +781,36 @@ onMounted(() => {
     <el-dialog
       v-model="reviewCapsuleDialogVisible"
       title="💊 闪念胶囊 (Capsule)"
-      width="50%"
+      :fullscreen="!!reviewCapsuleData?.file_url"
+      :width="reviewCapsuleData?.file_url ? '100%' : '50%'"
       destroy-on-close
     >
-      <div v-if="reviewCapsuleData" class="mb-4">
+      <div v-if="reviewCapsuleData" class="mb-4 h-full flex flex-col">
         <h4 class="font-bold text-gray-800 text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
         <div class="text-xs text-gray-400 mb-4">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
-        <div class="prose max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-6 rounded-lg border border-gray-100">
-          {{ reviewCapsuleData.content }}
+        
+        <!-- 有文件附件时渲染全屏预览 -->
+        <div v-if="reviewCapsuleData.file_url" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-[70vh]">
+          <template v-if="getFileType(reviewCapsuleData.file_type) === 'pdf'">
+            <iframe :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh] border-0"></iframe>
+          </template>
+          <template v-else-if="getFileType(reviewCapsuleData.file_type) === 'docx'">
+            <vue-office-docx :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh]" />
+          </template>
+          <template v-else-if="getFileType(reviewCapsuleData.file_type) === 'excel'">
+            <vue-office-excel :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh]" />
+          </template>
+          <template v-else-if="getFileType(reviewCapsuleData.file_type) === 'pptx'">
+            <vue-office-pptx :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh]" />
+          </template>
+          <template v-else>
+            <div class="p-8 text-center text-gray-500">该格式暂不支持直接预览，请<a :href="getFullUrl(reviewCapsuleData.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
+          </template>
         </div>
+        
+        <!-- 无附件时渲染文本 -->
+         <div v-else class="prose max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-6 rounded-lg border border-gray-100" v-html="renderMarkdown(reviewCapsuleData.content)">
+         </div>
       </div>
     </el-dialog>
 

@@ -9,12 +9,13 @@ from app.core.database import engine, Base, get_db
 from app.models.feed import FeedItem, SourceConfig
 from app.models.graph import GraphNode, GraphEdge
 from app.models.capsule import Capsule
+from app.models.chat import GlobalConversation, GlobalMessage
 from app.schemas.feed import FeedItemCreate, FeedItemResponse, ChatRequest, KnowledgeSaveRequest, GlobalChatRequest, SourceConfigCreate, SourceConfigResponse, ChatHistorySync
 from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
 from app.utils.file_parser import parse_file_to_text
-from app.routers import graph, search
+from app.routers import graph, search, chat
 from app.services.graph_builder import build_graph_edges_for_node
 
 # 自动创建数据库表（生产环境建议使用 Alembic 迁移）
@@ -69,10 +70,13 @@ app.add_middleware(
 
 app.include_router(graph.router)
 app.include_router(search.router)
+app.include_router(chat.router)
 
 # 确保存放 PDF 的目录存在
 os.makedirs("data/pdfs", exist_ok=True)
 app.mount("/static/pdfs", StaticFiles(directory="data/pdfs"), name="pdfs")
+os.makedirs("uploads/capsules", exist_ok=True)
+app.mount("/uploads/capsules", StaticFiles(directory="uploads/capsules"), name="uploads_capsules")
 
 @app.get("/")
 async def root():
@@ -544,10 +548,25 @@ async def upload_capsule_file(
     capsule_content = f"【文件解析: {filename}】\n\n{extracted_text}"
     title = f"文件: {filename}"
     
+    # 将文件保存到本地 uploads 目录以便后续回溯
+    file_url = None
+    file_type = None
+    if file.content_type and (file.content_type.startswith('application/pdf') or 'word' in file.content_type or 'powerpoint' in file.content_type or 'excel' in file.content_type or 'spreadsheet' in file.content_type or file.content_type.startswith('image/')):
+        os.makedirs("uploads/capsules", exist_ok=True)
+        import uuid
+        safe_filename = f"{uuid.uuid4().hex}_{filename}"
+        file_path = os.path.join("uploads/capsules", safe_filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
+        file_url = f"/uploads/capsules/{safe_filename}"
+        file_type = file.content_type
+
     # 1. 本地落库
     new_capsule = Capsule(
         title=title,
-        content=capsule_content
+        content=capsule_content,
+        file_url=file_url,
+        file_type=file_type
     )
     db.add(new_capsule)
     db.commit()
@@ -758,7 +777,7 @@ async def get_daily_review(db: Session = Depends(get_db)):
     if review_type == "capsule":
         item = db.query(Capsule).order_by(func.random()).first()
         if item:
-            return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at}}
+            return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at, "file_url": item.file_url, "file_type": item.file_type}}
             
     # 如果没抽到胶囊，或者抽到了 feed，则去查 feed
     item = db.query(FeedItem).filter(FeedItem.status == 'deep_read').order_by(func.random()).first()
@@ -768,7 +787,7 @@ async def get_daily_review(db: Session = Depends(get_db)):
     # 如果 feed 也没有，再去查一次胶囊兜底
     item = db.query(Capsule).order_by(func.random()).first()
     if item:
-        return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at}}
+        return {"type": "capsule", "data": {"id": item.id, "title": item.title, "content": item.content, "date": item.created_at, "file_url": item.file_url, "file_type": item.file_type}}
         
     return {"type": "none", "data": None}
 
