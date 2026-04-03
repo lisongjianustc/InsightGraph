@@ -19,13 +19,22 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <el-select v-model="sortBy" size="large" class="w-40" placeholder="排序依据">
+          <el-option label="提交时间" value="submittedDate" />
+          <el-option label="最后更新" value="lastUpdatedDate" />
+          <el-option label="相关度" value="relevance" />
+        </el-select>
+        <el-select v-model="sortOrder" size="large" class="w-32" placeholder="排序方式">
+          <el-option label="降序" value="descending" />
+          <el-option label="升序" value="ascending" />
+        </el-select>
         <el-button type="primary" size="large" :loading="isSearching" @click="handleSearch" class="px-8 font-bold">
           检索 arXiv
         </el-button>
       </div>
       <p class="text-xs text-gray-400 mt-3 flex items-center gap-1">
         <el-icon><InfoFilled /></el-icon>
-        可直接输入自然语言，后台自动转换。也支持 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
+        支持双引号精确短语匹配 (如: "large language models" agent)。也可直接使用 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
       </p>
     </div>
 
@@ -103,6 +112,8 @@ import axios from 'axios'
 const API_BASE = 'http://localhost:8000/api'
 
 const searchQuery = ref('')
+const sortBy = ref('submittedDate')
+const sortOrder = ref('descending')
 const isSearching = ref(false)
 const hasSearched = ref(false)
 const results = ref<any[]>([])
@@ -130,7 +141,12 @@ const handleSearch = async () => {
   
   try {
     const res = await axios.get(`${API_BASE}/search/external`, {
-      params: { query, max_results: 15 }
+      params: { 
+        query, 
+        max_results: 15,
+        sort_by: sortBy.value,
+        sort_order: sortOrder.value
+      }
     })
     results.value = res.data
   } catch (error) {

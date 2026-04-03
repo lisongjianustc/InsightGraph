@@ -19,45 +19,57 @@ class ImportRequest(BaseModel):
     url: str
     authors: list[str]
 
+import re
+
 def build_arxiv_query(user_query: str) -> str:
     """
     将用户输入的自然语言或简单关键词转化为 arXiv 支持的查询语法。
-    如果用户已经输入了高级语法（如 au:, cat:），则尽量保留；
-    否则，将以空格分隔的词汇转化为 AND 关系的全字段检索。
+    支持双引号精确匹配，例如："deep learning" medical
     """
     user_query = user_query.strip()
-    # 如果已经包含 arXiv 关键字前缀，则假定用户知道自己在干什么，直接 urlencode
     if any(prefix in user_query for prefix in ['au:', 'ti:', 'abs:', 'cat:', 'all:']):
         return urllib.parse.quote(user_query)
         
-    # 否则，将普通关键词按空格分割，并用 AND 连接
-    # 例如 "deep learning" -> "all:deep AND all:learning"
-    # 或者如果包含引号，可以做更复杂的处理，这里做简单处理
-    terms = [term for term in user_query.split() if term]
+    # 使用正则提取带引号的词组和普通词组
+    # r'\"(.*?)\"|(\S+)' 会匹配 "deep learning" 或者 medical
+    pattern = re.compile(r'\"(.*?)\"|(\S+)')
+    matches = pattern.findall(user_query)
+    
+    terms = []
+    for match in matches:
+        if match[0]: # 匹配到双引号包裹的短语
+            # arXiv 要求双引号短语需要用 %22 包裹
+            terms.append(f"all:%22{urllib.parse.quote(match[0])}%22")
+        elif match[1]: # 匹配到普通单词
+            terms.append(f"all:{urllib.parse.quote(match[1])}")
+            
     if not terms:
         return ""
         
-    formatted_terms = [f"all:{term}" for term in terms]
-    arxiv_query = "+AND+".join(formatted_terms)
-    
+    arxiv_query = "+AND+".join(terms)
     return arxiv_query
 
 @router.get("/external")
-async def search_external(query: str, max_results: int = 10, db: Session = Depends(get_db)):
+async def search_external(
+    query: str, 
+    max_results: int = 10, 
+    sort_by: str = "submittedDate", 
+    sort_order: str = "descending", 
+    db: Session = Depends(get_db)
+):
     """
     通过 arXiv API 主动按条件检索文献
+    支持自定义排序依据和排序顺序
     """
     if not query:
         return []
         
     try:
-        # 智能构建查询参数
         safe_query = build_arxiv_query(query)
         if not safe_query:
             return []
             
-        # 修复 sortOrder=desc 为 descending
-        url = f"http://export.arxiv.org/api/query?search_query={safe_query}&sortBy=submittedDate&sortOrder=descending&max_results={max_results}"
+        url = f"http://export.arxiv.org/api/query?search_query={safe_query}&sortBy={sort_by}&sortOrder={sort_order}&max_results={max_results}"
         
         logger.info(f"Searching arXiv: {url}")
         feed = feedparser.parse(url)
