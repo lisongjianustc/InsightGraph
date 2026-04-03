@@ -37,6 +37,7 @@ const dailyReview = ref<any>(null)
 const dailyReviewLoading = ref(false)
 const reviewCapsuleDialogVisible = ref(false)
 const reviewCapsuleData = ref<any>(null)
+const capsuleViewMode = ref('file')
 
 const fetchDailyReview = async () => {
   dailyReviewLoading.value = true
@@ -56,6 +57,7 @@ const handleDailyReviewClick = async () => {
   if (!dailyReview.value) return
   if (dailyReview.value.type === 'capsule') {
     reviewCapsuleData.value = dailyReview.value.data
+    capsuleViewMode.value = 'file' // 每次点开重置为优先展示原文件
     reviewCapsuleDialogVisible.value = true
   } else if (dailyReview.value.type === 'feed') {
     try {
@@ -786,11 +788,21 @@ onMounted(() => {
       destroy-on-close
     >
       <div v-if="reviewCapsuleData" class="mb-4 h-full flex flex-col">
-        <h4 class="font-bold text-gray-800 text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
-        <div class="text-xs text-gray-400 mb-4">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h4 class="font-bold text-gray-800 text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
+            <div class="text-xs text-gray-400">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
+          </div>
+          
+          <!-- 切换器：仅当有附件时显示 -->
+          <el-radio-group v-if="reviewCapsuleData.file_url" v-model="capsuleViewMode" size="small" class="shrink-0 ml-4">
+            <el-radio-button label="file"><el-icon class="mr-1"><Document /></el-icon>原文件预览</el-radio-button>
+            <el-radio-button label="text"><el-icon class="mr-1"><DocumentCopy /></el-icon>解析文本</el-radio-button>
+          </el-radio-group>
+        </div>
         
-        <!-- 有文件附件时渲染全屏预览 -->
-        <div v-if="reviewCapsuleData.file_url" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-[70vh]">
+        <!-- 有文件附件且处于文件预览模式时渲染 -->
+        <div v-if="reviewCapsuleData.file_url && capsuleViewMode === 'file'" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-[70vh]">
           <template v-if="getFileType(reviewCapsuleData.file_type) === 'pdf'">
             <iframe :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh] border-0"></iframe>
           </template>
@@ -808,9 +820,11 @@ onMounted(() => {
           </template>
         </div>
         
-        <!-- 无附件时渲染文本 -->
-         <div v-else class="prose max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-6 rounded-lg border border-gray-100" v-html="renderMarkdown(reviewCapsuleData.content)">
-         </div>
+        <!-- 无附件，或处于解析文本模式时渲染 -->
+        <div v-else class="flex-1 overflow-y-auto">
+          <div class="prose max-w-4xl mx-auto text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-8 rounded-lg border border-gray-100" v-html="renderMarkdown(reviewCapsuleData.content)">
+          </div>
+        </div>
       </div>
     </el-dialog>
 
