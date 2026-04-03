@@ -148,6 +148,13 @@ async def global_chat(req: GlobalChatRequest):
         media_type="text/event-stream"
     )
 
+@app.get("/api/feed/{feed_id}")
+async def get_feed_item(feed_id: int, db: Session = Depends(get_db)):
+    item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+    return item
+
 @app.post("/api/feed/{feed_id}/retry")
 async def retry_feed_processing(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """

@@ -80,8 +80,8 @@ async def search_external(
             logger.error(f"Feedparser bozo error: {feed.bozo_exception}")
             return []
             
-        # 查询已存在的 URLs 进行去重标识
-        existing_urls = {item[0] for item in db.query(FeedItem.url).filter(FeedItem.url.isnot(None)).all()}
+        # 查询已存在的项目进行去重和状态绑定
+        existing_items = {item.url: item for item in db.query(FeedItem).filter(FeedItem.url.isnot(None)).all()}
         
         for entry in feed.entries:
             # 如果标题是 Error，说明 API 返回了错误信息而不是论文列表
@@ -93,7 +93,8 @@ async def search_external(
             if not hasattr(entry, 'link'):
                 continue
                 
-            is_imported = entry.link in existing_urls
+            existing = existing_items.get(entry.link)
+            is_imported = existing is not None
             authors = [a.name for a in entry.authors] if hasattr(entry, "authors") else []
             published = entry.published if hasattr(entry, "published") else ""
             
@@ -103,7 +104,11 @@ async def search_external(
                 "url": entry.link,
                 "authors": authors,
                 "published": published,
-                "is_imported": is_imported
+                "is_imported": is_imported,
+                "local_id": existing.id if existing else None,
+                "status": existing.status if existing else None,
+                "skim_summary": existing.skim_summary if existing else None,
+                "is_saved_to_kb": existing.is_saved_to_kb if existing else False
             })
             
         return results
@@ -111,7 +116,74 @@ async def search_external(
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail="Search failed")
 
-@router.post("/import")
+class ImportBatchRequest(BaseModel):
+    items: list[ImportRequest]
+
+@router.post("/import_batch")
+async def import_batch_results(req: ImportBatchRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    批量将选中的外部文献入库并触发处理
+    """
+    if not req.items:
+        return {"status": "success", "imported_count": 0, "items": []}
+        
+    urls = [item.url for item in req.items]
+    existing_items = {item.url: item for item in db.query(FeedItem).filter(FeedItem.url.in_(urls)).all()}
+    
+    new_items = []
+    for item_req in req.items:
+        if item_req.url not in existing_items:
+            new_item = FeedItem(
+                source="arxiv",
+                title=item_req.title,
+                content=item_req.summary,
+                url=item_req.url,
+                raw_data={"authors": item_req.authors}
+            )
+            db.add(new_item)
+            new_items.append(new_item)
+            
+    if new_items:
+        db.commit()
+        for item in new_items:
+            db.refresh(item)
+            
+    # 异步生成摘要的闭包
+    async def generate_skim_batch(item_ids: list[int]):
+        local_db = SessionLocal()
+        try:
+            items = local_db.query(FeedItem).filter(FeedItem.id.in_(item_ids)).all()
+            for item in items:
+                try:
+                    summary = await dify_client.get_skim_reading_summary(content=item.content, title=item.title)
+                    item.skim_summary = summary
+                    local_db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to generate skim for imported item {item.id}: {e}")
+        finally:
+            local_db.close()
+            
+    new_item_ids = [item.id for item in new_items]
+    if new_item_ids:
+        background_tasks.add_task(generate_skim_batch, new_item_ids)
+        
+    # 构建返回结果，供前端更新状态
+    response_items = []
+    for item_req in req.items:
+        existing = existing_items.get(item_req.url)
+        if existing:
+            response_items.append({"url": item_req.url, "local_id": existing.id})
+        else:
+            # 找到刚刚新插入的
+            new_inserted = next((n for n in new_items if n.url == item_req.url), None)
+            if new_inserted:
+                response_items.append({"url": item_req.url, "local_id": new_inserted.id})
+                
+    return {
+        "status": "success", 
+        "imported_count": len(new_items), 
+        "items": response_items
+    }
 async def import_search_result(req: ImportRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     将选中的外部文献入库并触发处理
