@@ -78,6 +78,40 @@ const saveQuickNote = async () => {
   }
 }
 
+const isSyncing = ref(false)
+
+const triggerSync = async () => {
+  isSyncing.value = true
+  try {
+    await axios.post(`${API_BASE}/settings/sync`)
+    ElMessage.success('已触发后台拉取任务，稍后请点击刷新查看最新资讯')
+  } catch (error) {
+    ElMessage.error('触发拉取失败')
+  } finally {
+    isSyncing.value = false
+  }
+}
+
+const retryFeed = async (feed: FeedItem) => {
+  const loadingMsg = ElMessage({
+    message: `正在重新拉取并解析卡片: ${feed.title.slice(0, 15)}...`,
+    type: 'info',
+    duration: 0
+  })
+  try {
+    const res = await axios.post(`${API_BASE}/feed/${feed.id}/retry`)
+    if (res.data.status === 'success') {
+      feed.full_text = res.data.feed.full_text
+      feed.skim_summary = res.data.feed.skim_summary
+      ElMessage.success('单卡片刷新重试成功！')
+    }
+  } catch (error) {
+    ElMessage.error('单卡片刷新失败')
+  } finally {
+    loadingMsg.close()
+  }
+}
+
 const fetchFeeds = async () => {
   loading.value = true
   try {
@@ -532,7 +566,12 @@ onMounted(() => {
     <!-- 资讯流 Header -->
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-xl font-bold text-gray-800">今日资讯 (Feeds)</h3>
-      <el-button :icon="Refresh" circle @click="fetchFeeds" :loading="loading" />
+      <div class="flex items-center gap-3">
+        <el-button type="primary" plain :loading="isSyncing" @click="triggerSync">
+          <el-icon class="mr-1"><Download /></el-icon> 手动拉取最新资讯
+        </el-button>
+        <el-button :icon="Refresh" circle @click="fetchFeeds" :loading="loading" />
+      </div>
     </div>
 
     <!-- 分栏 / 分 Tab 展示区 -->
@@ -561,9 +600,14 @@ onMounted(() => {
                class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md flex flex-col">
             <div class="p-6 flex-1 flex flex-col">
               <div class="flex items-center justify-between mb-3">
-                <el-tag :type="getSourceTagType(feed.source)" size="small" class="uppercase">
-                  {{ feed.source }}
-                </el-tag>
+                <div class="flex items-center gap-2">
+                  <el-tag :type="getSourceTagType(feed.source)" size="small" class="uppercase">
+                    {{ feed.source }}
+                  </el-tag>
+                  <el-button size="small" text type="info" class="!p-1 hover:!text-blue-500" @click="retryFeed(feed)" title="重新拉取/刷新卡片">
+                    <el-icon><Refresh /></el-icon>
+                  </el-button>
+                </div>
                 <span class="text-xs text-gray-400">{{ formatDate(feed.created_at) }}</span>
               </div>
               

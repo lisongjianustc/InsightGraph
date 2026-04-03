@@ -147,6 +147,49 @@ async def global_chat(req: GlobalChatRequest):
         media_type="text/event-stream"
     )
 
+@app.post("/api/feed/{feed_id}/retry")
+async def retry_feed_processing(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """
+    单卡片刷新重试机制：重新抓取 PDF 全文（如果缺失）并强制重新生成泛读摘要
+    """
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    if not feed_item:
+        raise HTTPException(status_code=404, detail="Feed not found")
+        
+    # 1. 尝试重新拉取全文 (针对 arXiv)
+    if feed_item.source == 'arxiv' and feed_item.url:
+        try:
+            from app.utils.pdf_parser import fetch_arxiv_pdf_text
+            full_text = await fetch_arxiv_pdf_text(feed_item.url)
+            if full_text:
+                feed_item.full_text = full_text
+                db.commit()
+        except Exception as e:
+            logger.error(f"Failed to retry fetching arxiv pdf: {e}")
+            
+    # 2. 清理之前的摘要失败状态或旧缓存
+    feed_item.skim_summary = None
+    db.commit()
+    
+    # 3. 重新调用泛读生成
+    summary = await dify_client.get_skim_reading_summary(
+        content=feed_item.full_text or feed_item.content,
+        title=feed_item.title
+    )
+    
+    feed_item.skim_summary = summary
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": "Retry completed",
+        "feed": {
+            "id": feed_item.id,
+            "full_text": feed_item.full_text,
+            "skim_summary": feed_item.skim_summary
+        }
+    }
+
 @app.post("/api/feed/{feed_id}/save_to_kb")
 async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
@@ -522,12 +565,63 @@ async def upload_capsule_file(
     return {"status": "success", "id": new_capsule.id, "message": f"文件 {filename} 已成功解析并入库。"}
 
 @app.get("/api/capsules")
-async def list_capsules(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
+async def list_capsules(skip: int = 0, limit: int = 50, keyword: str = None, db: Session = Depends(get_db)):
     """
-    获取所有的闪念胶囊列表
+    获取所有的闪念胶囊列表（支持搜索和分页）
     """
-    capsules = db.query(Capsule).order_by(Capsule.created_at.desc()).offset(skip).limit(limit).all()
-    return capsules
+    query = db.query(Capsule)
+    if keyword:
+        query = query.filter(Capsule.content.ilike(f"%{keyword}%") | Capsule.title.ilike(f"%{keyword}%"))
+    
+    total = query.count()
+    capsules = query.order_by(Capsule.created_at.desc()).offset(skip).limit(limit).all()
+    return {
+        "total": total,
+        "items": capsules
+    }
+
+@app.put("/api/capsules/{capsule_id}")
+async def update_capsule(capsule_id: int, payload: CapsuleCreate, db: Session = Depends(get_db)):
+    """
+    更新闪念胶囊的内容，并同步更新知识图谱节点
+    """
+    capsule = db.query(Capsule).filter(Capsule.id == capsule_id).first()
+    if not capsule:
+        raise HTTPException(status_code=404, detail="Capsule not found")
+        
+    capsule.content = payload.content
+    if payload.title:
+        capsule.title = payload.title
+    db.commit()
+    
+    # Update GraphNode
+    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule').first()
+    if node:
+        node.content = payload.content
+        if payload.title:
+            node.title = payload.title
+        db.commit()
+        
+    return {"status": "success", "message": "Capsule updated successfully"}
+
+@app.delete("/api/capsules/{capsule_id}")
+async def delete_capsule(capsule_id: int, db: Session = Depends(get_db)):
+    """
+    删除闪念胶囊，并级联删除相关的知识图谱节点与关联边
+    """
+    capsule = db.query(Capsule).filter(Capsule.id == capsule_id).first()
+    if not capsule:
+        raise HTTPException(status_code=404, detail="Capsule not found")
+        
+    # Delete GraphNode and Edges
+    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule').first()
+    if node:
+        db.query(GraphEdge).filter((GraphEdge.source_node_id == node.id) | (GraphEdge.target_node_id == node.id)).delete()
+        db.delete(node)
+        
+    db.delete(capsule)
+    db.commit()
+    return {"status": "success", "message": "Capsule deleted successfully"}
 
 # 预留给飞书的 Webhook 回调路由 (处理日常聊天消息存入知识库)
 @app.post("/webhook/feishu")

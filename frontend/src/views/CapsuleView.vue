@@ -67,26 +67,41 @@
       <div class="flex justify-between items-center mb-4 shrink-0">
         <h2 class="text-lg font-bold text-gray-700 flex items-center">
           <el-icon class="mr-2 text-purple-500"><Collection /></el-icon>
-          最近封存
+          胶囊库 ({{ totalCapsules }})
         </h2>
-        <el-button link @click="fetchCapsules">
-          <el-icon><Refresh /></el-icon>
-        </el-button>
+        <div class="flex items-center gap-3">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索胶囊内容..."
+            :prefix-icon="Search"
+            clearable
+            class="w-64"
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+          />
+          <el-button link @click="fetchCapsules">
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+        </div>
       </div>
 
-      <div class="flex-1 overflow-auto pb-8 custom-scrollbar">
+      <div class="flex-1 overflow-auto pb-4 custom-scrollbar">
         <div v-loading="isLoading" class="space-y-4">
-          <el-empty v-if="!isLoading && capsules.length === 0" description="还没有记录任何灵感" />
+          <el-empty v-if="!isLoading && capsules.length === 0" description="没有找到匹配的胶囊" />
           
           <el-card 
             v-for="cap in capsules" 
             :key="cap.id" 
             shadow="never" 
-            class="rounded-lg border border-gray-100 hover:shadow-md transition-shadow group"
+            class="rounded-lg border border-gray-100 hover:shadow-md transition-shadow group relative"
           >
             <div class="flex justify-between items-start mb-2">
               <span class="text-xs text-gray-400 font-mono">{{ formatDate(cap.created_at) }}</span>
-              <el-tag size="small" type="info" effect="plain" class="opacity-0 group-hover:opacity-100 transition-opacity">已入库</el-tag>
+              <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <el-button size="small" text type="primary" @click="openEditDialog(cap)"><el-icon><Edit /></el-icon></el-button>
+                <el-button size="small" text type="danger" @click="confirmDelete(cap)"><el-icon><Delete /></el-icon></el-button>
+                <el-tag size="small" type="info" effect="plain">已入库</el-tag>
+              </div>
             </div>
             <div class="prose max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed text-sm break-words overflow-hidden" style="max-height: 300px; overflow-y: auto;">
               {{ cap.content }}
@@ -94,14 +109,50 @@
           </el-card>
         </div>
       </div>
+      
+      <!-- 分页 -->
+      <div class="shrink-0 flex justify-center py-4 bg-gray-50/80 backdrop-blur-sm z-10 border-t border-gray-100">
+        <el-pagination
+          v-model:current-page="currentPage"
+          v-model:page-size="pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          background
+          layout="total, sizes, prev, pager, next"
+          :total="totalCapsules"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </div>
+    
+    <!-- 编辑弹窗 -->
+    <el-dialog v-model="editDialogVisible" title="编辑胶囊" width="50%" destroy-on-close>
+      <div class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-gray-700 mb-1 block">标题 (可选)</label>
+          <el-input v-model="editingCapsule.title" placeholder="给胶囊起个名字..." />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700 mb-1 block">内容</label>
+          <el-input v-model="editingCapsule.content" type="textarea" :rows="10" placeholder="修改你的想法..." />
+        </div>
+      </div>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="editDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isSavingEdit" @click="saveEdit">
+            保存修改
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Position, Collection, Refresh, DocumentAdd, Loading } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const API_BASE = 'http://localhost:8000/api'
@@ -112,6 +163,72 @@ const isSubmitting = ref(false)
 const isLoading = ref(false)
 const isUploading = ref(false)
 const capsules = ref<any[]>([])
+const totalCapsules = ref(0)
+const currentPage = ref(1)
+const pageSize = ref(10)
+const searchQuery = ref('')
+
+const editDialogVisible = ref(false)
+const isSavingEdit = ref(false)
+const editingCapsule = ref<any>({})
+
+const handleSearch = () => {
+  currentPage.value = 1
+  fetchCapsules()
+}
+
+const handleSizeChange = (val: number) => {
+  pageSize.value = val
+  fetchCapsules()
+}
+
+const handleCurrentChange = (val: number) => {
+  currentPage.value = val
+  fetchCapsules()
+}
+
+const openEditDialog = (cap: any) => {
+  editingCapsule.value = { ...cap }
+  editDialogVisible.value = true
+}
+
+const saveEdit = async () => {
+  isSavingEdit.value = true
+  try {
+    await axios.put(`${API_BASE}/capsules/${editingCapsule.value.id}`, {
+      content: editingCapsule.value.content,
+      title: editingCapsule.value.title || null
+    })
+    ElMessage.success('胶囊修改成功')
+    editDialogVisible.value = false
+    fetchCapsules()
+  } catch (error) {
+    ElMessage.error('修改失败')
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
+const confirmDelete = (cap: any) => {
+  ElMessageBox.confirm('删除该胶囊会同时删除知识图谱中的关联节点，是否继续？', '警告', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      await axios.delete(`${API_BASE}/capsules/${cap.id}`)
+      ElMessage.success('删除成功')
+      // If deleting the last item on a page, go to previous page
+      if (capsules.value.length === 1 && currentPage.value > 1) {
+        currentPage.value--
+      } else {
+        fetchCapsules()
+      }
+    } catch (error) {
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {})
+}
 
 const beforeUpload = (_file: File) => {
   isUploading.value = true
@@ -136,10 +253,22 @@ const handleUploadError = (_error: any, file: any) => {
 const fetchCapsules = async () => {
   isLoading.value = true
   try {
-    const res = await axios.get(`${API_BASE}/capsules`)
-    capsules.value = res.data
+    const skip = (currentPage.value - 1) * pageSize.value
+    const params: any = { skip, limit: pageSize.value }
+    if (searchQuery.value) {
+      params.keyword = searchQuery.value
+    }
+    const res = await axios.get(`${API_BASE}/capsules`, { params })
+    // Backward compatibility if backend isn't updated yet
+    if (Array.isArray(res.data)) {
+      capsules.value = res.data
+      totalCapsules.value = res.data.length
+    } else {
+      capsules.value = res.data.items
+      totalCapsules.value = res.data.total
+    }
   } catch (error) {
-    ElMessage.error('获取胶囊历史失败')
+    ElMessage.error('获取历史记录失败')
   } finally {
     isLoading.value = false
   }
