@@ -159,8 +159,9 @@
           </div>
           <div class="flex-1 min-h-0 relative bytemd-wrapper">
             <Editor
-              v-model="editingCapsule.content"
+              :value="editingCapsule.content || ''"
               :plugins="plugins"
+              @change="(v: string) => { editingCapsule.content = v }"
               class="h-full w-full"
               placeholder="在此修改你的 Markdown 内容..."
             />
