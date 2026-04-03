@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '../components/MainLayout.vue'
 import FeedView from '../views/FeedView.vue'
 import CapsuleView from '../views/CapsuleView.vue'
@@ -8,7 +8,7 @@ import SettingsView from '../views/SettingsView.vue'
 import SearchView from '../views/SearchView.vue'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: '/',

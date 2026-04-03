@@ -6,9 +6,9 @@ const route = useRoute()
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-50">
+  <div class="flex h-screen bg-gray-50" style="-webkit-app-region: drag">
     <!-- 侧边栏 -->
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col" style="-webkit-app-region: no-drag">
       <div class="p-6">
         <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <el-icon class="text-blue-500"><Connection /></el-icon>
@@ -17,46 +17,34 @@ const route = useRoute()
         <p class="text-xs text-gray-500 mt-1">Personal Knowledge Base</p>
       </div>
 
-      <nav class="flex-1 px-4 space-y-2 mt-4">
-        <router-link to="/" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/' ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><Document /></el-icon>
+      <nav class="flex-1 px-4 space-y-1 mt-4 text-sm font-medium">
+        <router-link to="/" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" exact-active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><Document /></el-icon>
           今日资讯 (Feed)
         </router-link>
         
-        <router-link to="/capsule" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/capsule' ? 'bg-purple-50 text-purple-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><MagicStick /></el-icon>
+        <router-link to="/capsule" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><MagicStick /></el-icon>
           闪念胶囊 (Capsule)
         </router-link>
 
-        <router-link to="/graph" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/graph' ? 'bg-green-50 text-green-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><Share /></el-icon>
+        <router-link to="/graph" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><Share /></el-icon>
           知识图谱 (Graph)
         </router-link>
 
-        <router-link to="/search" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/search' ? 'bg-orange-50 text-orange-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><Search /></el-icon>
+        <router-link to="/search" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><Search /></el-icon>
           文献检索 (Search)
         </router-link>
         
         <!-- 预留其他菜单 -->
-        <router-link to="/chat" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/chat' ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><ChatDotRound /></el-icon>
+        <router-link to="/chat" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><ChatDotRound /></el-icon>
           全局问答 (Chat)
         </router-link>
-        <router-link to="/settings" 
-          class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors"
-          :class="route.path === '/settings' ? 'bg-gray-100 text-gray-800 font-medium' : 'text-gray-600 hover:bg-gray-50'">
-          <el-icon><Setting /></el-icon>
+        <router-link to="/settings" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><Setting /></el-icon>
           系统设置 (Settings)
         </router-link>
       </nav>
@@ -72,7 +60,7 @@ const route = useRoute()
     </aside>
 
     <!-- 主内容区 -->
-    <main class="flex-1 overflow-auto flex flex-col">
+    <main class="flex-1 overflow-auto flex flex-col" style="-webkit-app-region: no-drag">
       <header class="h-16 bg-white border-b border-gray-200 flex items-center px-8 shrink-0">
         <h2 class="text-lg font-medium text-gray-800">
           <template v-if="route.name === 'feed'">知识发现</template>
