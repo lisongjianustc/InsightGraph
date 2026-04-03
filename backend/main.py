@@ -9,7 +9,7 @@ from app.core.database import engine, Base, get_db
 from app.models.feed import FeedItem, SourceConfig
 from app.models.graph import GraphNode, GraphEdge
 from app.models.capsule import Capsule
-from app.models.chat import GlobalConversation, GlobalMessage
+from app.models.chat import GlobalConversation
 from app.schemas.feed import FeedItemCreate, FeedItemResponse, ChatRequest, KnowledgeSaveRequest, GlobalChatRequest, SourceConfigCreate, SourceConfigResponse, ChatHistorySync
 from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
