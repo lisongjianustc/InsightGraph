@@ -1,63 +1,67 @@
 <template>
-  <div class="h-screen bg-gray-50 flex flex-col items-center pt-10 px-4 relative overflow-hidden">
+  <div class="min-h-screen bg-gray-50 flex flex-col items-center pt-10 px-4 relative overflow-auto custom-scrollbar">
     <!-- 背景装饰 -->
     <div class="absolute top-0 w-full h-64 bg-gradient-to-b from-purple-100 to-transparent pointer-events-none"></div>
 
-    <div class="max-w-3xl w-full z-10 flex flex-col h-full">
+    <div class="max-w-3xl w-full z-10 flex flex-col flex-1">
       <!-- 头部 -->
-      <div class="text-center mb-4 shrink-0">
-        <h1 class="text-3xl font-extrabold text-gray-800 tracking-tight mb-2">⚡️ 闪念胶囊</h1>
-        <p class="text-sm text-gray-500">记录一闪而过的灵感碎片，自动构建专属知识网络</p>
+      <div class="text-center mb-8 shrink-0">
+        <h1 class="text-4xl font-extrabold text-gray-800 tracking-tight mb-2">⚡️ 闪念胶囊</h1>
+        <p class="text-gray-500">记录一闪而过的灵感、文档或碎片化信息，自动构建专属知识网络</p>
       </div>
 
-      <!-- 紧凑型输入区 -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-300 focus-within:shadow-md focus-within:border-purple-300 mb-6 shrink-0 overflow-hidden relative">
-        <el-input
-          v-model="capsuleInput"
-          type="textarea"
-          :autosize="{ minRows: 2, maxRows: 8 }"
-          placeholder="写下你的想法 (支持 Markdown)，或直接 Ctrl+V 粘贴截图..."
-          resize="none"
-          class="compact-textarea text-base"
-          @keydown.ctrl.enter="submitCapsule"
-          @keydown.meta.enter="submitCapsule"
-          @paste="handlePaste"
-        />
-        <div class="flex justify-between items-center px-4 py-3 bg-gray-50/80 border-t border-gray-100">
-          <div class="flex items-center gap-2">
-            <el-upload
-              :action="uploadUrl"
-              :show-file-list="false"
-              :on-success="handleUploadSuccess"
-              :on-error="handleUploadError"
-              :before-upload="beforeUpload"
-              name="file"
-              class="inline-flex items-center"
-            >
-              <el-button size="small" class="!border-gray-200 hover:!border-purple-300 hover:!text-purple-600 transition-colors" plain>
-                <el-icon class="mr-1 text-base"><DocumentAdd /></el-icon>
-                <span class="hidden sm:inline">上传文档/图文</span>
+      <!-- 原版大输入区 -->
+      <el-card shadow="hover" class="rounded-xl border-0 overflow-visible mb-8 shrink-0">
+        <div class="relative">
+          <el-upload
+            class="w-full"
+            drag
+            :action="uploadUrl"
+            :show-file-list="false"
+            :on-success="handleUploadSuccess"
+            :on-error="handleUploadError"
+            :before-upload="beforeUpload"
+            name="file"
+          >
+            <div v-if="!isUploading" class="el-upload__text text-gray-400 p-4">
+              <el-icon class="text-3xl mb-2 text-gray-300"><DocumentAdd /></el-icon>
+              <div>拖拽文档到此处上传解析</div>
+              <div class="text-xs mt-1">支持 图文 / PDF / Word / Excel / PPT / MD / TXT</div>
+            </div>
+            <div v-else class="el-upload__text text-gray-400 p-4 flex flex-col items-center justify-center">
+              <el-icon class="text-3xl mb-2 text-blue-400 is-loading"><Loading /></el-icon>
+              <div>正在解析文档，请稍候...</div>
+            </div>
+          </el-upload>
+          
+          <div class="mt-4 relative">
+            <el-input
+              v-model="capsuleInput"
+              type="textarea"
+              :rows="4"
+              placeholder="或者写下你的想法 (支持 Markdown)，或直接 Ctrl+V 粘贴截图..."
+              resize="none"
+              class="custom-textarea text-lg"
+              @keydown.ctrl.enter="submitCapsule"
+              @keydown.meta.enter="submitCapsule"
+              @paste="handlePaste"
+            />
+            <div class="absolute bottom-3 right-3 flex items-center gap-3">
+              <span class="text-xs text-gray-400">Ctrl + Enter 发送</span>
+              <el-button 
+                type="primary" 
+                class="!rounded-lg font-bold px-6 shadow-md"
+                :loading="isSubmitting"
+                :disabled="!capsuleInput.trim()"
+                @click="submitCapsule"
+              >
+                封存想法
+                <el-icon class="ml-2"><Position /></el-icon>
               </el-button>
-            </el-upload>
-            <span v-if="isUploading" class="text-xs text-purple-600 flex items-center gap-1 bg-purple-100/50 px-2 py-1 rounded">
-              <el-icon class="is-loading"><Loading /></el-icon> AI 解析中...
-            </span>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400 hidden sm:inline">Ctrl + Enter 发送</span>
-            <el-button 
-              type="primary" 
-              class="!rounded-lg font-bold px-6 shadow-sm"
-              :loading="isSubmitting"
-              :disabled="!capsuleInput.trim()"
-              @click="submitCapsule"
-            >
-              封存想法
-              <el-icon class="ml-1"><Position /></el-icon>
-            </el-button>
+            </div>
           </div>
         </div>
-      </div>
+      </el-card>
 
       <!-- 历史胶囊列表 -->
       <div class="flex justify-between items-center mb-4 shrink-0">
@@ -81,7 +85,7 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto pb-4 custom-scrollbar">
+      <div class="flex-1 pb-20">
         <div v-loading="isLoading" class="space-y-4">
           <el-empty v-if="!isLoading && capsules.length === 0" description="没有找到匹配的胶囊" />
           
@@ -106,8 +110,8 @@
         </div>
       </div>
       
-      <!-- 分页 -->
-      <div class="shrink-0 flex justify-center py-4 bg-gray-50/80 backdrop-blur-sm z-10 border-t border-gray-100">
+      <!-- 分页 (悬浮吸底) -->
+      <div class="fixed bottom-0 left-0 w-full flex justify-center py-4 bg-gray-50/90 backdrop-blur-md z-20 border-t border-gray-200/50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -340,14 +344,22 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.compact-textarea :deep(.el-textarea__inner) {
+.custom-textarea :deep(.el-textarea__inner) {
   border: none;
   box-shadow: none;
-  padding: 16px 16px 12px 16px;
+  padding: 16px 16px 48px 16px;
   background: transparent;
 }
-.compact-textarea :deep(.el-textarea__inner:focus) {
+.custom-textarea :deep(.el-textarea__inner:focus) {
   box-shadow: none;
+}
+:deep(.el-upload-dragger) {
+  padding: 20px;
+  border-radius: 12px;
+  background-color: #f9fafb;
+}
+:deep(.el-upload-dragger:hover) {
+  background-color: #f3f4f6;
 }
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
