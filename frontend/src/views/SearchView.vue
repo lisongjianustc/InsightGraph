@@ -19,23 +19,27 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
-        <el-select v-model="sortBy" size="large" class="w-40" placeholder="排序依据">
-          <el-option label="提交时间" value="submittedDate" />
-          <el-option label="最后更新" value="lastUpdatedDate" />
-          <el-option label="相关度" value="relevance" />
-        </el-select>
-        <el-select v-model="sortOrder" size="large" class="w-32" placeholder="排序方式">
-          <el-option label="降序" value="descending" />
-          <el-option label="升序" value="ascending" />
-        </el-select>
         <el-button type="primary" size="large" :loading="isSearching" @click="handleSearch" class="px-8 font-bold">
           检索 arXiv
         </el-button>
       </div>
-      <p class="text-xs text-gray-400 mt-3 flex items-center gap-1">
-        <el-icon><InfoFilled /></el-icon>
-        支持双引号精确短语匹配 (如: "large language models" agent)。也可直接使用 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
-      </p>
+      <div class="flex items-center justify-between mt-3">
+        <p class="text-xs text-gray-400 flex items-center gap-1">
+          <el-icon><InfoFilled /></el-icon>
+          支持双引号精确短语匹配 (如: "large language models" agent)。也可直接使用 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
+        </p>
+        <div v-if="hasSearched && results.length > 0" class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">结果排序:</span>
+          <el-select v-model="sortBy" size="small" class="w-28" @change="sortResults">
+            <el-option label="提交时间" value="submittedDate" />
+            <el-option label="相关度" value="relevance" />
+          </el-select>
+          <el-select v-model="sortOrder" size="small" class="w-24" @change="sortResults">
+            <el-option label="降序" value="descending" />
+            <el-option label="升序" value="ascending" />
+          </el-select>
+        </div>
+      </div>
     </div>
 
     <!-- Search Results -->
@@ -121,10 +125,40 @@ const results = ref<any[]>([])
 // 记录各个条目的入库 Loading 状态，key 为 URL
 const importingStates = ref<Record<string, boolean>>({})
 
+// 保存原始返回的结果，用于还原排序
+const originalResults = ref<any[]>([])
+
 const formatDate = (dateStr: string) => {
   if (!dateStr) return 'Unknown Date'
   return new Date(dateStr).toLocaleDateString('zh-CN', {
     year: 'numeric', month: 'short', day: 'numeric'
+  })
+}
+
+// 前端本地重排逻辑
+const sortResults = () => {
+  if (results.value.length === 0) return
+  
+  if (sortBy.value === 'relevance') {
+    // 恢复默认检索顺序 (arXiv API 的默认打分顺序)
+    results.value = [...originalResults.value]
+    if (sortOrder.value === 'ascending') {
+      results.value.reverse()
+    }
+    return
+  }
+
+  // 否则按时间排序
+  results.value.sort((a, b) => {
+    const dateA = new Date(a.published).getTime() || 0
+    const dateB = new Date(b.published).getTime() || 0
+    let comparison = dateA - dateB
+    
+    if (sortOrder.value === 'descending') {
+      return comparison > 0 ? -1 : (comparison < 0 ? 1 : 0)
+    } else {
+      return comparison > 0 ? 1 : (comparison < 0 ? -1 : 0)
+    }
   })
 }
 
@@ -140,15 +174,22 @@ const handleSearch = async () => {
   results.value = []
   
   try {
+    // 强制使用 relevance 检索作为基础数据，以便前端能进行双向排序
     const res = await axios.get(`${API_BASE}/search/external`, {
       params: { 
         query, 
         max_results: 15,
-        sort_by: sortBy.value,
-        sort_order: sortOrder.value
+        sort_by: 'relevance',
+        sort_order: 'descending'
       }
     })
+    originalResults.value = [...res.data] // 保存原始副本
     results.value = res.data
+    
+    // 如果用户设置了其他默认排序，检索后立刻应用
+    if (sortBy.value !== 'relevance' || sortOrder.value !== 'descending') {
+      sortResults()
+    }
   } catch (error) {
     ElMessage.error('检索失败，请检查网络或稍后重试')
   } finally {
