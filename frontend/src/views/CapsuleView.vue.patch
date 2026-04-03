@@ -1,0 +1,15 @@
+import { Editor, Viewer } from '@bytemd/vue-next'
+import gfm from '@bytemd/plugin-gfm'
+import highlight from '@bytemd/plugin-highlight'
+import breaks from '@bytemd/plugin-breaks'
+import math from '@bytemd/plugin-math'
+import 'bytemd/dist/index.css'
+import 'highlight.js/styles/vs.css' // Light theme highlight style
+import 'juejin-markdown-themes/dist/juejin.min.css' // Optional: a nice markdown theme, or use default
+
+const plugins = [
+  gfm(),
+  highlight(),
+  breaks(),
+  math()
+]

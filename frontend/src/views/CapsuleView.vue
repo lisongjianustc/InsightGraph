@@ -157,12 +157,12 @@
           <div class="shrink-0">
             <el-input v-model="editingCapsule.title" placeholder="给胶囊起个名字 (可选)..." size="large" />
           </div>
-          <div class="flex-1 min-h-0 relative">
-            <el-input 
-              v-model="editingCapsule.content" 
-              type="textarea" 
-              class="h-full custom-full-textarea"
-              placeholder="在此修改你的 Markdown 内容..." 
+          <div class="flex-1 min-h-0 relative bytemd-wrapper">
+            <Editor
+              v-model="editingCapsule.content"
+              :plugins="plugins"
+              class="h-full w-full"
+              placeholder="在此修改你的 Markdown 内容..."
             />
           </div>
           <div class="shrink-0 flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -173,11 +173,16 @@
           </div>
         </div>
 
-        <div v-else class="flex-1 overflow-auto custom-scrollbar">
-          <div class="max-w-4xl mx-auto px-4 py-6">
-            <h1 v-if="editingCapsule.title" class="text-3xl font-bold mb-6 text-gray-900 border-b pb-4">{{ editingCapsule.title }}</h1>
-            <div class="prose prose-indigo max-w-none prose-lg" v-html="renderMarkdown(editingCapsule.content)"></div>
-            <div class="mt-12 pt-6 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
+        <div v-else class="flex-1 overflow-auto custom-scrollbar bg-white">
+          <div class="max-w-4xl mx-auto px-8 py-10">
+            <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-gray-900 border-b pb-6">{{ editingCapsule.title }}</h1>
+            <div class="markdown-body text-lg leading-loose">
+              <Viewer
+                :value="editingCapsule.content"
+                :plugins="plugins"
+              />
+            </div>
+            <div class="mt-16 pt-8 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
               记录于 {{ formatDate(editingCapsule.created_at) }}
             </div>
           </div>
@@ -195,6 +200,26 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+// @ts-ignore
+import { Editor, Viewer } from '@bytemd/vue-next'
+// @ts-ignore
+import gfm from '@bytemd/plugin-gfm'
+// @ts-ignore
+import highlight from '@bytemd/plugin-highlight'
+// @ts-ignore
+import breaks from '@bytemd/plugin-breaks'
+// @ts-ignore
+import math from '@bytemd/plugin-math'
+import 'bytemd/dist/index.css'
+import 'highlight.js/styles/vs.css' 
+import 'juejin-markdown-themes/dist/juejin.min.css'
+
+const plugins = [
+  gfm(),
+  highlight(),
+  breaks(),
+  math()
+]
 
 const route = useRoute()
 const router = useRouter()
@@ -452,6 +477,19 @@ onMounted(() => {
   line-height: 1.6;
   padding: 16px;
   border-radius: 8px;
+}
+
+/* ByteMD Style overrides */
+.bytemd-wrapper :deep(.bytemd) {
+  height: 100%;
+  border-radius: 8px;
+  border: 1px solid #f3f4f6;
+}
+.bytemd-wrapper :deep(.bytemd-preview) {
+  padding: 24px;
+}
+.markdown-body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
 }
 </style>
 <style>
