@@ -2314,8 +2314,6 @@ services:
     - ./dify-source/docker/.env
   db_postgres:
     image: postgres:15-alpine
-    profiles:
-    - postgresql
     restart: always
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
@@ -3183,8 +3181,6 @@ services:
     - ./dify-source/docker/.env
   weaviate:
     image: semitechnologies/weaviate:1.27.0
-    profiles:
-    - weaviate
     restart: always
     volumes:
     - ./dify-source/docker/volumes/weaviate:/var/lib/weaviate
