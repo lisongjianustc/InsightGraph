@@ -272,6 +272,9 @@ const isUploading = ref(false)
 const uploadedFiles = ref<{id: string, type: string, name: string}[]>([])
 const chatScrollRef = ref<HTMLElement | null>(null)
 
+// 用于控制流式请求的中断
+let abortController: AbortController | null = null
+
 // 编辑相关
 const editingConvId = ref<number | null>(null)
 const editingTitle = ref('')
@@ -323,6 +326,14 @@ const fetchConversations = async () => {
 
 const loadConversation = async (id: number) => {
   if (currentConvId.value === id) return
+  
+  // 切换对话时，如果有正在进行的请求，则中止它
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+    isTyping.value = false
+  }
+  
   try {
     const res = await axios.get(`${API_BASE}/global-chat/conversations/${id}`)
     currentConvId.value = res.data.id
@@ -340,6 +351,12 @@ const loadConversation = async (id: number) => {
 }
 
 const startNewChat = () => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+    isTyping.value = false
+  }
+
   currentConvId.value = null
   currentConvTitle.value = ''
   difyConversationId.value = ''
@@ -528,8 +545,14 @@ const sendMessage = async () => {
   isTyping.value = true
   scrollToBottom()
 
+  // 核心修复1：用户发完消息立刻同步到数据库，确保历史记录先落库，不会因为切换而丢失
+  await syncConversation()
+
   messages.value.push({ role: 'assistant', content: '', citations: [] })
   const currentMsgIndex = messages.value.length - 1
+
+  // 初始化 AbortController 用于随时中断请求
+  abortController = new AbortController()
 
   try {
     const response = await fetch(`${API_BASE}/chat/global`, {
@@ -539,7 +562,8 @@ const sendMessage = async () => {
         query: query,
         conversation_id: difyConversationId.value,
         files: filesToUpload
-      })
+      }),
+      signal: abortController.signal
     })
 
     if (!response.body) throw new Error('No response body')
@@ -565,6 +589,14 @@ const sendMessage = async () => {
           try {
             const data = JSON.parse(dataStr)
             if (data.event === 'message') {
+              // 核心修复2：如果用户已经点击了新对话清空了消息，此时必须立刻跳出循环，防止数组越界报错
+              if (!messages.value[currentMsgIndex]) {
+                if (abortController) {
+                  abortController.abort()
+                  abortController = null
+                }
+                return
+              }
               messages.value[currentMsgIndex].content += data.answer
               if (data.conversation_id && !difyConversationId.value) {
                 difyConversationId.value = data.conversation_id
@@ -580,25 +612,39 @@ const sendMessage = async () => {
                     uniqueCitations.set(r.document_name, { title: r.document_name, dataset_id: r.dataset_id })
                   }
                 })
-                messages.value[currentMsgIndex].citations = Array.from(uniqueCitations.values())
+                if (messages.value[currentMsgIndex]) {
+                  messages.value[currentMsgIndex].citations = Array.from(uniqueCitations.values())
+                }
               }
             }
             else if (data.event === 'error') {
-              messages.value[currentMsgIndex].content += `\n\n**[Error]**: ${data.message}`
+              if (messages.value[currentMsgIndex]) {
+                messages.value[currentMsgIndex].content += `\n\n**[Error]**: ${data.message}`
+              }
             }
           } catch (e) {}
         }
       }
     }
     
-    // Sync to DB
-    await syncConversation()
+    // 核心修复3：AI 回答完毕后，再次同步，把完整的回答更新到数据库
+    // 并且如果发现用户已经切换了对话（messages 数组被清空），则不再执行同步，防止串台
+    if (messages.value.length > currentMsgIndex) {
+      await syncConversation()
+    }
     
-  } catch (error) {
-    console.error('Chat error:', error)
-    messages.value[currentMsgIndex].content += '\n\n**[网络错误]**: 无法连接到全局对话服务。'
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.log('Chat request was aborted')
+    } else {
+      console.error('Chat error:', error)
+      if (messages.value[currentMsgIndex]) {
+        messages.value[currentMsgIndex].content += '\n\n**[网络错误]**: 无法连接到全局对话服务。'
+      }
+    }
   } finally {
     isTyping.value = false
+    abortController = null
     scrollToBottom()
   }
 }
