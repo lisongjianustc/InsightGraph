@@ -78,14 +78,32 @@
 
 ---
 
-## 🛠 技术架构 (Architecture)
+## 🛠 技术架构与生态树 (Tech Stack & Ecosystem)
 
-InsightGraph 的架构设计崇尚解耦与极致的扩展性：
-- **Frontend**: Vue 3 + TypeScript + Vite + TailwindCSS + Element Plus + ECharts。
-- **Desktop**: Electron + Electron Builder。
-- **Backend**: FastAPI (Python) 提供极速并发的 REST API 与 SSE 流式数据推送。
-- **AI Brain**: **Dify**。所有的文本 Embedding 向量化、RAG 检索、图片 OCR 工作流以及 Chatbot 会话，均依托本地/云端的 Dify 实例驱动。
-- **Database**: PostgreSQL + PgVector。完美支持结构化关系数据与高维知识向量图谱。
+InsightGraph 的架构设计崇尚“解耦、自动化与极致的视觉体验”。我们严选了当前最具生命力的开源框架来构建这套系统：
+
+### 🎨 前端与桌面端 (Frontend & Desktop)
+- **核心框架**: Vue 3 (Composition API) + TypeScript + Vite 5。
+- **桌面端引擎**: **Electron** + Electron Builder。提供无缝的原生窗口体验与沙盒穿透能力。
+- **UI 与视觉**: Element Plus + TailwindCSS 3。
+- **沉浸式编辑器**: **ByteMD**。字节跳动开源的高性能 Markdown 编辑器，支持 GFM、代码高亮 (highlight.js) 与数学公式 (KaTeX)，并搭配了 `juejin-markdown-themes` 打造顶级阅读排版。
+- **原生文档预览**: `@vue-office` 生态 (`docx`, `excel`, `pdf`, `pptx`)，实现无需转换的纯前端高清文档渲染。
+- **动态图谱引擎**: Apache **ECharts** 6。负责驱动千万级知识节点与万物引力连线的流畅渲染。
+
+### ⚙️ 核心业务后端 (Backend)
+- **Web 框架**: **FastAPI**。基于 ASGI 提供极速并发的 REST API 与 SSE 流式数据推送服务。
+- **ORM 与数据建模**: SQLAlchemy 2.0 + Pydantic v2。
+- **任务调度**: APScheduler。负责系统后台的文献拉取、定时摘要生成等守护进程。
+- **文档解析矩阵**: `PyMuPDF` (底层 PDF 解析), `pdf2zh` (文档翻译), `python-docx/pptx` 等构建的强力解析管道。
+- **第三方集成**: Lark (飞书) 官方 Python SDK，用于将知识卡片无缝推送到飞书工作流。
+
+### 🧠 数据库与中间件 (Data & Middleware)
+- **主关系库与向量引擎**: **PostgreSQL + PgVector**。利用 PgVector 插件，使 PG 完美兼顾了高维 RAG 知识向量检索与复杂关系型业务数据的存储。
+- **高速缓存**: Redis 7。用于高频图谱数据缓存与流式会话状态保持。
+- **工作流编排**: **n8n**。内置于 Docker 环境中的节点化自动化平台，可轻松定制对 arXiv、GitHub 的监控与飞书推送流。
+
+### 🤖 AI 大脑核心 (The AI Engine)
+- **大模型底座平台**: **Dify**。InsightGraph 所有的文本 Embedding、RAG 混合检索、多模态视觉 OCR 工作流以及具有记忆的 Chatbot 会话，均完全托管于本地或云端的 Dify 实例。这种设计使得你可以随时在 Dify 后台零代码无缝切换底层大模型（如 GPT-4o, Claude 3.5, Qwen, DeepSeek 等）。
 
 ---
 
