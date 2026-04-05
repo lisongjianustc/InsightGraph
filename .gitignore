@@ -67,6 +67,7 @@ ollama_ocr_guide.md
 
 # Project specific
 data/
+backups/
 *.pdf
 test_*.py
 
