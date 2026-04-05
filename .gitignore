@@ -70,6 +70,11 @@ data/
 backups/
 *.pdf
 test_*.py
+.frontend_pid
+frontend_dev.log
+frontend/dist_electron/
+frontend/process_icon.py
+frontend/raw_icon.png
 
 # IDE / Editor
 .idea/
