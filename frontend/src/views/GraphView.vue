@@ -131,6 +131,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, markRaw } from 'vue'
+import { useRouter } from 'vue-router'
 import { Connection, Refresh, MagicStick, InfoFilled, Loading, Link, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
@@ -174,6 +175,8 @@ const getTagType = (type: string) => {
   return 'info'
 }
 
+const router = useRouter()
+
 const openDoc = (doc: any, action?: string) => {
   if (doc.type === 'original') {
     if (action === 'pdf' && doc.pdf_url) {
@@ -182,13 +185,13 @@ const openDoc = (doc: any, action?: string) => {
       window.open(doc.url, '_blank')
     }
   } else if (doc.type === 'capsule') {
-    if (action === 'pdf' && doc.file_url) {
-      // Navigate to capsule view to use internal @vue-office viewer instead of raw browser download
-      window.open(`/#/capsule?highlight_id=${doc.ref_id}`, '_blank')
-    } else {
-      // Navigate to capsule view and auto-highlight
-      window.open(`/#/capsule?highlight_id=${doc.ref_id}`, '_blank')
-    }
+    // 使用 Vue Router 解析出正确的相对路径 (如 #/capsule?highlight_id=...)
+    // 这解决了 Electron 打包后 file:// 协议下绝对路径跳转白屏的问题
+    const routeUrl = router.resolve({
+      path: '/capsule',
+      query: { highlight_id: doc.ref_id }
+    })
+    window.open(routeUrl.href, '_blank')
   } else if (doc.type === 'skim' || doc.type === 'deep') {
     knowledgeDialogData.value = doc
     knowledgeDialogVisible.value = true

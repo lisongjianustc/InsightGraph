@@ -168,7 +168,7 @@
             <Editor
               :value="editingCapsule.content || ''"
               :plugins="plugins"
-              @change="(v: any) => { editingCapsule.content = v }"
+              @change="handleEditorChange"
               class="h-full custom-bytemd-editor"
               placeholder="在此修改你的 Markdown 内容..."
             />
@@ -319,6 +319,10 @@ const openCapsuleDetail = (cap: any, edit = false) => {
   editingMode.value = edit
   capsuleViewMode.value = cap.file_url && !edit ? 'file' : 'text'
   detailDrawerVisible.value = true
+}
+
+const handleEditorChange = (v: string) => {
+  editingCapsule.value.content = v
 }
 
 const saveEdit = async () => {
