@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
-import { Connection, Document, ChatDotRound, Setting, MagicStick, Share, Search } from '@element-plus/icons-vue'
+import { Connection, Document, ChatDotRound, Setting, MagicStick, Share, Search, Calendar } from '@element-plus/icons-vue'
 
 const route = useRoute()
 </script>
@@ -26,6 +26,11 @@ const route = useRoute()
         <router-link to="/capsule" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
           <el-icon :size="18"><MagicStick /></el-icon>
           闪念胶囊 (Capsule)
+        </router-link>
+
+        <router-link to="/daily" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">
+          <el-icon :size="18"><Calendar /></el-icon>
+          每日笔记 (Daily)
         </router-link>
 
         <router-link to="/graph" class="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors" active-class="bg-indigo-50 text-indigo-700 font-semibold shadow-sm">

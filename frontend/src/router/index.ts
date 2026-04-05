@@ -6,6 +6,7 @@ import GraphView from '../views/GraphView.vue'
 import GlobalChatView from '../views/GlobalChatView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import SearchView from '../views/SearchView.vue'
+import DailyNoteView from '../views/DailyNoteView.vue'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -38,6 +39,11 @@ const router = createRouter({
           path: 'search',
           name: 'search',
           component: SearchView
+        },
+        {
+          path: 'daily',
+          name: 'daily',
+          component: DailyNoteView
         },
         {
           path: 'settings',

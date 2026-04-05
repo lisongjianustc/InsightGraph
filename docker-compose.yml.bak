@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 配合 pgvector 插件（不仅是关系型数据库，还是 RAG 的向量知识库）
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: insight_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存与队列（FastAPI 和 n8n 均可复用）
+  redis:
+    image: redis:7-alpine
+    container_name: insight_redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+    ports:
+      - "6379:6379"
+
+  # n8n：用于监控 Arxiv, GitHub 及推送飞书的自动化平台
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: insight_n8n
+    restart: always
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+    ports:
+      - "${N8N_PORT}:5678"
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # FastAPI 核心业务后端
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: insight_backend
+    restart: always
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASS=${POSTGRES_PASSWORD}
+      - DB_NAME=${POSTGRES_DB}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - DIFY_API_KEY=${DIFY_API_KEY}
+      - DIFY_API_URL=${DIFY_API_URL}
+      - DIFY_READER_API_KEY=${DIFY_READER_API_KEY}
+      - DIFY_DATASET_SKIM_ID=${DIFY_DATASET_SKIM_ID}
+      - DIFY_DATASET_ORIGINAL_ID=${DIFY_DATASET_ORIGINAL_ID}
+      - DIFY_DATASET_CAPSULE_ID=${DIFY_DATASET_CAPSULE_ID}
+      - DIFY_DATASET_DEEP_ID=${DIFY_DATASET_DEEP_ID}
+      - DIFY_DEEP_READER_API_KEY=${DIFY_DEEP_READER_API_KEY}
+      - DIFY_OCR_WORKFLOW_API_KEY=${DIFY_OCR_WORKFLOW_API_KEY}
+      - DIFY_GLOBAL_CHAT_API_KEY=${DIFY_GLOBAL_CHAT_API_KEY}
+      - FEISHU_APP_ID=${FEISHU_APP_ID}
+      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET}
+      - FEISHU_ENCRYPT_KEY=${FEISHU_ENCRYPT_KEY}
+      - FEISHU_VERIFICATION_TOKEN=${FEISHU_VERIFICATION_TOKEN}
+    ports:
+      - "${API_PORT}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started

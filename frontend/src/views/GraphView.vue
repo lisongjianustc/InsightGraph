@@ -76,10 +76,10 @@
           <div v-if="selectedNode.docs?.length > 0" class="space-y-3">
             <div v-for="(doc, index) in selectedNode.docs" :key="index" 
                  class="bg-white p-3 rounded border border-gray-200 shadow-sm transition-colors"
-                 :class="{'hover:border-indigo-300 cursor-pointer': doc.type === 'skim' || doc.type === 'deep'}"
-                 @click="(doc.type === 'skim' || doc.type === 'deep') ? openDoc(doc) : null">
+                 :class="{'hover:border-indigo-300 cursor-pointer': doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note'}"
+                 @click="(doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note') ? openDoc(doc) : null">
               <div class="flex items-start justify-between gap-2">
-                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug transition-colors" :class="{'hover:text-indigo-600': doc.type === 'skim' || doc.type === 'deep'}">{{ doc.name }}</span>
+                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug transition-colors" :class="{'hover:text-indigo-600': doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note'}">{{ doc.name }}</span>
                 <el-tag :type="getTagType(doc.type)" size="small" class="shrink-0">{{ doc.type.toUpperCase() }}</el-tag>
               </div>
               <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-gray-500 line-clamp-3 bg-gray-50 p-2 rounded cursor-pointer hover:bg-gray-100 transition-colors" @click="openDoc(doc)">
@@ -164,6 +164,7 @@ const colorMap: Record<string, string> = {
   skim: '#10b981',
   deep: '#f59e0b',
   capsule: '#8b5cf6',
+  daily_note: '#ec4899',
   tag: '#ef4444'
 }
 
@@ -172,6 +173,7 @@ const getTagType = (type: string) => {
   if (type === 'skim') return 'success'
   if (type === 'deep') return 'warning'
   if (type === 'capsule') return 'danger'
+  if (type === 'daily_note') return 'info'
   return 'info'
 }
 
@@ -190,6 +192,11 @@ const openDoc = (doc: any, action?: string) => {
     const routeUrl = router.resolve({
       path: '/capsule',
       query: { highlight_id: doc.ref_id }
+    })
+    window.open(routeUrl.href, '_blank')
+  } else if (doc.type === 'daily_note') {
+    const routeUrl = router.resolve({
+      path: '/daily'
     })
     window.open(routeUrl.href, '_blank')
   } else if (doc.type === 'skim' || doc.type === 'deep') {
