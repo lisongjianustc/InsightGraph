@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { Calendar, MagicStick, SwitchButton } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, SwitchButton, Search } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
@@ -24,7 +24,11 @@ const datesWithNotes = ref<string[]>([])
 
 // Reference drawer
 const showReferences = ref(true)
+const activeTab = ref('capsule')
+const searchQuery = ref('')
 const recentCapsules = ref<any[]>([])
+const recentFeeds = ref<any[]>([])
+const searchTimeout = ref<number | null>(null)
 
 // AI Writer
 const showAIPanel = ref(false)
@@ -35,6 +39,7 @@ onMounted(() => {
   fetchDates()
   fetchNote(formatDate(selectedDate.value))
   fetchRecentCapsules()
+  fetchRecentFeeds()
 })
 
 const formatDate = (date: Date) => {
@@ -64,12 +69,49 @@ const fetchNote = async (dateStr: string) => {
 
 const fetchRecentCapsules = async () => {
   try {
-    const res = await axios.get(`${API_BASE}/capsules/`)
-    recentCapsules.value = res.data.slice(0, 10)
+    const params = searchQuery.value ? { keyword: searchQuery.value, limit: 20 } : { limit: 20 }
+    const res = await axios.get(`${API_BASE}/capsules/`, { params })
+    recentCapsules.value = res.data.items || res.data || []
   } catch (e) {
     console.error('Failed to fetch capsules', e)
   }
 }
+
+const fetchRecentFeeds = async () => {
+  try {
+    // 假设后端 /api/feed/list 支持搜索，如果没有直接拉取列表并在前端过滤
+    const res = await axios.get(`${API_BASE}/feed/list`, { params: { limit: 20 } })
+    let feeds = res.data || []
+    if (searchQuery.value) {
+      feeds = feeds.filter((f: any) => f.title?.toLowerCase().includes(searchQuery.value.toLowerCase()) || f.skim_summary?.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    }
+    recentFeeds.value = feeds
+  } catch (e) {
+    console.error('Failed to fetch feeds', e)
+  }
+}
+
+const handleSearch = () => {
+  if (searchTimeout.value) {
+    clearTimeout(searchTimeout.value)
+  }
+  searchTimeout.value = window.setTimeout(() => {
+    if (activeTab.value === 'capsule') {
+      fetchRecentCapsules()
+    } else {
+      fetchRecentFeeds()
+    }
+  }, 500)
+}
+
+watch(activeTab, () => {
+  searchQuery.value = ''
+  if (activeTab.value === 'capsule') {
+    fetchRecentCapsules()
+  } else {
+    fetchRecentFeeds()
+  }
+})
 
 const saveNote = async () => {
   if (isSaving.value) return
@@ -104,9 +146,15 @@ watch(selectedDate, (newDate) => {
   fetchNote(formatDate(newDate))
 })
 
-const handleDragStart = (e: DragEvent, capsule: any) => {
+const handleDragStartCapsule = (e: DragEvent, capsule: any) => {
   if (e.dataTransfer) {
-    e.dataTransfer.setData('text/plain', `> [!quote] ${capsule.title || '胶囊'}\n> ${capsule.content}\n\n[[capsule:${capsule.id}]]\n`)
+    e.dataTransfer.setData('text/plain', `> [!quote] ${capsule.title || '闪念胶囊'}\n> ${capsule.content}\n\n[[capsule:${capsule.id}]]\n`)
+  }
+}
+
+const handleDragStartFeed = (e: DragEvent, feed: any) => {
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', `> [!info] ${feed.title || '精读文献'}\n> ${feed.skim_summary || feed.summary || '暂无摘要'}\n\n[[feed:${feed.id}]]\n`)
   }
 }
 
@@ -254,20 +302,52 @@ const triggerAIRewrite = async () => {
     <!-- 右侧引用库 -->
     <div v-if="showReferences" class="w-80 border-l border-gray-200 bg-gray-50 flex flex-col">
       <div class="p-4 border-b border-gray-200">
-        <h3 class="font-semibold text-gray-700">闪念胶囊库</h3>
-        <p class="text-xs text-gray-500 mt-1">将下方卡片拖拽至左侧编辑器中即可引用</p>
+        <h3 class="font-semibold text-gray-700 mb-3">知识素材库</h3>
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索素材..."
+          :prefix-icon="Search"
+          clearable
+          @input="handleSearch"
+          class="mb-3"
+        />
+        <el-radio-group v-model="activeTab" size="small" class="w-full">
+          <el-radio-button label="capsule" class="flex-1">闪念胶囊</el-radio-button>
+          <el-radio-button label="feed" class="flex-1">文献摘要</el-radio-button>
+        </el-radio-group>
+        <p class="text-xs text-gray-500 mt-3">将下方卡片拖拽至左侧编辑器中即可引用</p>
       </div>
+      
       <div class="flex-1 overflow-y-auto p-4 space-y-3">
-        <div 
-          v-for="capsule in recentCapsules" 
-          :key="capsule.id"
-          draggable="true"
-          @dragstart="handleDragStart($event, capsule)"
-          class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all"
-        >
-          <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
-          <div class="text-xs text-gray-500 line-clamp-3">{{ capsule.content }}</div>
-        </div>
+        <!-- 胶囊列表 -->
+        <template v-if="activeTab === 'capsule'">
+          <div v-if="recentCapsules.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配胶囊</div>
+          <div 
+            v-for="capsule in recentCapsules" 
+            :key="'cap-'+capsule.id"
+            draggable="true"
+            @dragstart="handleDragStartCapsule($event, capsule)"
+            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all"
+          >
+            <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
+            <div class="text-xs text-gray-500 line-clamp-3">{{ capsule.content }}</div>
+          </div>
+        </template>
+        
+        <!-- 文献列表 -->
+        <template v-if="activeTab === 'feed'">
+          <div v-if="recentFeeds.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配文献</div>
+          <div 
+            v-for="feed in recentFeeds" 
+            :key="'feed-'+feed.id"
+            draggable="true"
+            @dragstart="handleDragStartFeed($event, feed)"
+            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all"
+          >
+            <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
+            <div class="text-xs text-gray-500 line-clamp-3">{{ feed.skim_summary || feed.summary || '暂无摘要' }}</div>
+          </div>
+        </template>
       </div>
     </div>
   </div>

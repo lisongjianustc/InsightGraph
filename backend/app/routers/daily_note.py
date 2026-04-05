@@ -102,9 +102,23 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
     if request.reference_capsule_ids:
         capsules = db.query(Capsule).filter(Capsule.id.in_(request.reference_capsule_ids)).all()
         
+    # [新增] 查出引用的精读文献内容
+    import re
+    from app.models.feed import FeedItem
+    feed_id_regex = re.compile(r'\[\[feed:(\d+)\]\]')
+    feed_ids = [int(x) for x in feed_id_regex.findall(request.draft_content)]
+    
+    feeds = []
+    if feed_ids:
+        feeds = db.query(FeedItem).filter(FeedItem.id.in_(feed_ids)).all()
+        
     reference_texts = []
     for c in capsules:
-        reference_texts.append(f"<reference title='{c.title}'>\n{c.content}\n</reference>")
+        reference_texts.append(f"<reference type='capsule' title='{c.title}'>\n{c.content}\n</reference>")
+        
+    for f in feeds:
+        content = f.deep_summary if f.deep_summary else f.skim_summary
+        reference_texts.append(f"<reference type='feed' title='{f.title}'>\n{content}\n</reference>")
         
     context = "\n".join(reference_texts) if reference_texts else "无额外参考资料"
     
