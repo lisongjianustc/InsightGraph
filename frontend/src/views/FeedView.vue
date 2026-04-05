@@ -3,13 +3,32 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled, Sunny } from '@element-plus/icons-vue'
-import DOMPurify from 'dompurify'
-import { marked } from 'marked'
+// @ts-ignore
+import { Editor, Viewer } from '@bytemd/vue-next'
+// @ts-ignore
+import gfm from '@bytemd/plugin-gfm'
+// @ts-ignore
+import highlight from '@bytemd/plugin-highlight'
+// @ts-ignore
+import breaks from '@bytemd/plugin-breaks'
+// @ts-ignore
+import math from '@bytemd/plugin-math'
+import 'bytemd/dist/index.css'
+import 'highlight.js/styles/vs.css'
+import 'juejin-markdown-themes/dist/juejin.min.css'
 import VueOfficeDocx from '@vue-office/docx'
 import VueOfficeExcel from '@vue-office/excel'
 import VueOfficePptx from '@vue-office/pptx'
 import '@vue-office/docx/lib/index.css'
 import '@vue-office/excel/lib/index.css'
+
+// ByteMD 插件配置
+const plugins = [
+  gfm(),
+  highlight(),
+  breaks(),
+  math()
+]
 
 const getFullUrl = (path: string) => {
   if (!path) return ''
@@ -27,11 +46,6 @@ const getFileType = (type: string) => {
 }
 
 const API_BASE = 'http://localhost:8000/api'
-
-const renderMarkdown = (text: string) => {
-  if (!text) return ''
-  return DOMPurify.sanitize(marked.parse(text) as string)
-}
 
 const dailyReview = ref<any>(null)
 const dailyReviewLoading = ref(false)
@@ -623,21 +637,32 @@ onMounted(() => {
 <template>
   <div class="max-w-6xl mx-auto">
     <!-- 快捷录入区 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-      <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
-        <el-icon><EditPen /></el-icon> 闪念胶囊 (Quick Note)
-      </h3>
-      <el-input
-        v-model="quickNoteContent"
-        type="textarea"
-        :rows="3"
-        placeholder="记录下刚才的灵感或碎片知识，一键送入知识库..."
-        class="mb-4"
-      />
-      <div class="flex justify-end">
-        <el-button type="primary" :disabled="!quickNoteContent.trim()" :loading="savingNote" @click="saveQuickNote">
-          存入知识库
-        </el-button>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative bytemd-wrapper feed-bytemd mb-8">
+      <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+        <h3 class="font-bold text-gray-800 flex items-center">
+          <el-icon class="mr-2 text-indigo-500"><EditPen /></el-icon>
+          闪念胶囊 (Quick Note)
+        </h3>
+      </div>
+      
+      <div class="h-64 relative">
+        <Editor
+          :value="quickNoteContent"
+          :plugins="plugins"
+          @change="(v: string) => { quickNoteContent = v }"
+          class="h-full w-full custom-bytemd-editor"
+          placeholder="记录下刚才的灵感或碎片知识，支持 Markdown 或直接粘贴截图..."
+        />
+      </div>
+      <div class="px-4 py-3 bg-gray-50 flex justify-between items-center border-t border-gray-100">
+        <div class="text-xs text-gray-400 font-mono">
+          <span v-if="quickNoteContent.length > 0">{{ quickNoteContent.length }} chars</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <el-button type="primary" :icon="Position" :loading="savingNote" @click="saveQuickNote" :disabled="!quickNoteContent.trim()" class="shadow-sm">
+            存入知识库
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -821,8 +846,14 @@ onMounted(() => {
         </div>
         
         <!-- 无附件，或处于解析文本模式时渲染 -->
-        <div v-else class="flex-1 overflow-y-auto">
-          <div class="prose max-w-4xl mx-auto text-gray-700 leading-relaxed whitespace-pre-wrap bg-gray-50 p-8 rounded-lg border border-gray-100" v-html="renderMarkdown(reviewCapsuleData.content)">
+        <div v-else class="flex-1 overflow-y-auto custom-scrollbar">
+          <div class="max-w-4xl mx-auto p-8">
+            <div class="markdown-body text-lg leading-loose">
+              <Viewer
+                :value="reviewCapsuleData.content"
+                :plugins="plugins"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1152,5 +1183,34 @@ onMounted(() => {
 .deep-read-drawer .el-drawer__body {
   padding: 20px;
   overflow: hidden;
+}
+</style>
+
+<style scoped>
+.feed-bytemd :deep(.bytemd) {
+  height: 100%;
+  border: none;
+}
+.feed-bytemd :deep(.bytemd-toolbar) {
+  border-bottom: 1px solid #f3f4f6;
+  background-color: transparent;
+}
+.feed-bytemd :deep(.CodeMirror) {
+  background-color: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 </style>
