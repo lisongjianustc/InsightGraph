@@ -34,7 +34,7 @@ fi
 echo "=================================================="
 echo "🚨 警告: 准备从备份恢复 InsightGraph 数据！"
 echo "📂 备份源: ${BACKUP_DIR}"
-echo "⚠️  此操作将覆盖现有的数据库、附件和 n8n 配置！"
+echo "⚠️  此操作将覆盖现有的数据库、附件、n8n 配置及 Dify 运行数据！"
 echo "=================================================="
 read -p "❓ 确认要继续吗？(y/N): " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
@@ -58,10 +58,11 @@ fi
 DB_USER="${POSTGRES_USER:-insight_user}"
 DB_NAME="${POSTGRES_DB:-insight_graph}"
 
-# 1. 停止业务容器以防写入冲突 (除了 postgres)
-echo "[1/6] 🛑 停止相关后端服务 (backend, n8n, redis)..."
+# 1. 停止所有业务容器以防写入冲突 (除了 insight_postgres)
+echo "[1/7] 🛑 停止相关后端服务 (除主库外)..."
 cd "${PROJECT_ROOT}"
-docker compose stop backend n8n redis
+# 我们通过 docker-compose 获取所有服务名，排除 insight_postgres
+docker compose stop
 if [ $? -eq 0 ]; then
     echo "  ✅ 服务已停止。"
 else
@@ -70,12 +71,12 @@ else
 fi
 
 # 2. 恢复 PostgreSQL 数据库
-echo "[2/6] 🐘 正在恢复 PostgreSQL 数据库..."
+echo "[2/7] 🐘 正在恢复 InsightGraph 主数据库..."
 if [ -f "${BACKUP_DIR}/postgres_db.dump" ]; then
     # 检查数据库容器是否在运行
     if ! docker ps | grep -q "insight_postgres"; then
         echo "  ⚠️ postgres 容器未运行，尝试启动..."
-        docker compose start postgres
+        docker compose start ig_postgres
         sleep 5
     fi
 
@@ -97,7 +98,7 @@ else
 fi
 
 # 3. 恢复本地附件
-echo "[3/6] 📎 正在恢复本地附件 (backend/uploads)..."
+echo "[3/7] 📎 正在恢复本地附件 (backend/uploads)..."
 if [ -f "${BACKUP_DIR}/backend_uploads.tar.gz" ]; then
     echo "  🔄 正在清理当前附件目录..."
     rm -rf "${PROJECT_ROOT}/backend/uploads"
@@ -108,7 +109,7 @@ else
 fi
 
 # 4. 恢复 n8n 数据
-echo "[4/6] 🤖 正在恢复 n8n 配置数据 (data/n8n)..."
+echo "[4/7] 🤖 正在恢复 n8n 配置数据 (data/n8n)..."
 if [ -f "${BACKUP_DIR}/n8n_data.tar.gz" ]; then
     echo "  🔄 正在清理当前 n8n 目录..."
     # 需要 sudo 权限，因为 n8n 文件通常属于其容器内的用户
@@ -120,7 +121,7 @@ else
 fi
 
 # 5. 恢复 Redis 数据
-echo "[5/6] 🟥 正在恢复 Redis 缓存数据 (data/redis)..."
+echo "[5/7] 🟥 正在恢复主 Redis 缓存数据 (data/redis)..."
 if [ -f "${BACKUP_DIR}/redis_data.tar.gz" ]; then
     echo "  🔄 正在清理当前 Redis 目录..."
     rm -rf "${PROJECT_ROOT}/data/redis"
@@ -130,8 +131,19 @@ else
     echo "  ℹ️ 未找到 redis_data.tar.gz，跳过 Redis 恢复。"
 fi
 
-# 6. 重启服务
-echo "[6/6] 🚀 重启所有后端服务..."
+# 6. 恢复 Dify 核心数据
+echo "[6/7] 🤖 正在恢复 Dify 核心数据 (dify-source/docker/volumes)..."
+if [ -f "${BACKUP_DIR}/dify_volumes.tar.gz" ]; then
+    echo "  🔄 正在清理当前 Dify 数据目录..."
+    sudo rm -rf "${PROJECT_ROOT}/dify-source/docker/volumes" 2>/dev/null || rm -rf "${PROJECT_ROOT}/dify-source/docker/volumes"
+    sudo tar -xzf "${BACKUP_DIR}/dify_volumes.tar.gz" -C "${PROJECT_ROOT}/dify-source/docker" 2>/dev/null || tar -xzf "${BACKUP_DIR}/dify_volumes.tar.gz" -C "${PROJECT_ROOT}/dify-source/docker"
+    echo "  ✅ Dify 数据恢复成功！"
+else
+    echo "  ℹ️ 未找到 dify_volumes.tar.gz，跳过 Dify 恢复。"
+fi
+
+# 7. 重启服务
+echo "[7/7] 🚀 重启所有后端服务..."
 cd "${PROJECT_ROOT}"
 docker compose start
 if [ $? -eq 0 ]; then

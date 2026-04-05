@@ -37,7 +37,7 @@ echo "  ✅ Docker Compose 已安装。"
 echo "[2/4] 📁 创建本地数据挂载目录..."
 mkdir -p "${PROJECT_ROOT}/data/postgres"
 mkdir -p "${PROJECT_ROOT}/data/redis"
-mkdir -p "${PROJECT_ROOT}/data/n8n"
+mkdir -p "${PROJECT_ROOT}/dify-source/docker/volumes"
 mkdir -p "${PROJECT_ROOT}/backend/uploads/capsules"
 mkdir -p "${PROJECT_ROOT}/backend/uploads/documents"
 
@@ -63,14 +63,10 @@ fi
 
 # 提示用户填入 Dify 密钥
 echo "=================================================="
-echo "⚠️ 注意: 在启动服务之前，您必须配置 .env 文件中的大模型 Key！"
-echo "  路径: ${PROJECT_ROOT}/.env"
-echo "  必须填写的字段包括："
-echo "    - DIFY_API_KEY"
-echo "    - DIFY_READER_API_KEY"
-echo "    - DIFY_DEEP_READER_API_KEY"
-echo "    - DIFY_OCR_WORKFLOW_API_KEY"
-echo "    - DIFY_GLOBAL_CHAT_API_KEY"
+echo "⚠️ 注意: 您现在可能不需要立即配置大模型 Key，因为 Dify 服务已经和后端合并部署了。"
+echo "  但如果您打算使用外部的 Dify，或者希望修改 Dify 本身的配置："
+echo "  主配置路径: ${PROJECT_ROOT}/.env"
+echo "  Dify内置配置路径: ${PROJECT_ROOT}/dify-source/docker/.env"
 echo "=================================================="
 
 # 4. 询问是否启动服务

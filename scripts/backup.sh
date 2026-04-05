@@ -9,7 +9,8 @@
 # 2. Redis 缓存数据 (可选，主要为了快速恢复状态)
 # 3. 本地上传的附件 (backend/uploads)
 # 4. n8n 自动化工作流配置与数据 (data/n8n)
-# 5. .env 环境配置文件
+# 5. Dify 核心挂载数据 (dify-source/docker/volumes)
+# 6. .env 环境配置文件
 # ==============================================================================
 
 # 基础目录配置
@@ -71,7 +72,7 @@ else
 fi
 
 # 5. 备份 Redis (可选)
-echo "[5/6] 🟥 正在备份 Redis 缓存数据 (data/redis)..."
+echo "[5/7] 🟥 正在备份 Redis 缓存数据 (data/redis)..."
 if [ -d "${PROJECT_ROOT}/data/redis" ]; then
     tar -czf "${BACKUP_DIR}/redis_data.tar.gz" -C "${PROJECT_ROOT}/data" redis
     echo "  ✅ Redis 数据备份成功。"
@@ -79,11 +80,26 @@ else
     echo "  ℹ️ Redis 数据目录不存在，跳过备份。"
 fi
 
-# 6. 备份环境变量文件 (非常重要)
-echo "[6/6] 🔑 正在备份环境变量配置 (.env)..."
+# 6. 备份 Dify 核心数据
+echo "[6/7] 🤖 正在备份 Dify 核心数据 (dify-source/docker/volumes)..."
+if [ -d "${PROJECT_ROOT}/dify-source/docker/volumes" ]; then
+    # 使用 sudo 避免遇到各种 root 容器的数据读写权限问题
+    tar -czf "${BACKUP_DIR}/dify_volumes.tar.gz" -C "${PROJECT_ROOT}/dify-source/docker" volumes 2>/dev/null || \
+    sudo tar -czf "${BACKUP_DIR}/dify_volumes.tar.gz" -C "${PROJECT_ROOT}/dify-source/docker" volumes
+    echo "  ✅ Dify 数据备份成功。"
+else
+    echo "  ℹ️ Dify 数据目录不存在，跳过备份。"
+fi
+
+# 7. 备份环境变量文件 (非常重要)
+echo "[7/7] 🔑 正在备份环境变量配置 (.env)..."
 if [ -f "${PROJECT_ROOT}/.env" ]; then
     cp "${PROJECT_ROOT}/.env" "${BACKUP_DIR}/.env.backup"
-    echo "  ✅ 环境变量文件备份成功。"
+    echo "  ✅ 主环境变量文件备份成功。"
+fi
+if [ -f "${PROJECT_ROOT}/dify-source/docker/.env" ]; then
+    cp "${PROJECT_ROOT}/dify-source/docker/.env" "${BACKUP_DIR}/dify.env.backup"
+    echo "  ✅ Dify 环境变量文件备份成功。"
 fi
 
 # 7. 清理过期备份
