@@ -610,16 +610,17 @@ async def list_capsules(skip: int = 0, limit: int = 50, keyword: str = None, db:
     }
 
 @app.put("/api/capsules/{capsule_id}")
-async def update_capsule(capsule_id: int, payload: CapsuleCreate, db: Session = Depends(get_db)):
+async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
-    更新闪念胶囊的内容，并同步更新知识图谱节点
+    更新闪念胶囊的内容，并同步更新知识图谱节点及 Dify 知识库
     """
     capsule = db.query(Capsule).filter(Capsule.id == capsule_id).first()
     if not capsule:
         raise HTTPException(status_code=404, detail="Capsule not found")
         
     capsule.content = payload.content
-    if payload.title:
+    # Allow title to be cleared if payload.title is explicitly empty string, but keep if None
+    if payload.title is not None:
         capsule.title = payload.title
     db.commit()
     
@@ -627,10 +628,43 @@ async def update_capsule(capsule_id: int, payload: CapsuleCreate, db: Session = 
     node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule').first()
     if node:
         node.content = payload.content
-        if payload.title:
+        if payload.title is not None:
             node.title = payload.title
         db.commit()
         
+    # Update Dify Knowledge Base
+    if getattr(capsule, 'dify_document_id', None):
+        from app.services.dify_service import DifyService
+        import os
+        dify_client = DifyService()
+        dataset_id = os.getenv("DIFY_DATASET_CAPSULE_ID")
+        if dataset_id:
+            # First delete the old document
+            background_tasks.add_task(
+                dify_client.delete_document,
+                dataset_id,
+                capsule.dify_document_id
+            )
+            # Then add the new content as a new document and update the dify_document_id
+            def update_dify_doc(capsule_id, content, dataset_id):
+                try:
+                    from app.core.database import get_db
+                    new_doc_id = dify_client.save_text_to_dataset(content, dataset_id)
+                    if new_doc_id:
+                        db_gen = get_db()
+                        db_session = next(db_gen)
+                        try:
+                            c = db_session.query(Capsule).filter(Capsule.id == capsule_id).first()
+                            if c:
+                                c.dify_document_id = new_doc_id
+                                db_session.commit()
+                        finally:
+                            next(db_gen, None)
+                except Exception as e:
+                    print(f"Failed to update Dify doc: {e}")
+            
+            background_tasks.add_task(update_dify_doc, capsule.id, capsule.content, dataset_id)
+
     return {"status": "success", "message": "Capsule updated successfully"}
 
 @app.delete("/api/capsules/{capsule_id}")

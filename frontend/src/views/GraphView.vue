@@ -183,12 +183,11 @@ const openDoc = (doc: any, action?: string) => {
     }
   } else if (doc.type === 'capsule') {
     if (action === 'pdf' && doc.file_url) {
-      // 如果直接打开原文件，拼接完整路径
-      const fileUrl = doc.file_url.startsWith('http') ? doc.file_url : `${API_BASE.replace('/api', '')}${doc.file_url}`
-      window.open(fileUrl, '_blank')
+      // Navigate to capsule view to use internal @vue-office viewer instead of raw browser download
+      window.open(`/#/capsule?highlight_id=${doc.ref_id}`, '_blank')
     } else {
       // Navigate to capsule view and auto-highlight
-      window.open(`/capsule?highlight_id=${doc.ref_id}`, '_blank')
+      window.open(`/#/capsule?highlight_id=${doc.ref_id}`, '_blank')
     }
   } else if (doc.type === 'skim' || doc.type === 'deep') {
     knowledgeDialogData.value = doc

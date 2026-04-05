@@ -168,8 +168,8 @@
             <Editor
               :value="editingCapsule.content || ''"
               :plugins="plugins"
-              @change="(v: string) => { editingCapsule.content = v }"
-              class="h-full w-full"
+              @change="(v: any) => { editingCapsule.content = v }"
+              class="h-full custom-bytemd-editor"
               placeholder="在此修改你的 Markdown 内容..."
             />
           </div>
