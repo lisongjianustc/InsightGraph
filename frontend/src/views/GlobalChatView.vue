@@ -280,8 +280,22 @@ const editInputRef = ref<any>(null)
 const favoriteConversations = computed(() => conversations.value.filter(c => c.is_favorite))
 const recentConversations = computed(() => conversations.value.filter(c => !c.is_favorite))
 
+const CURRENT_CONV_KEY = 'ig_current_global_chat_id'
+
 onMounted(() => {
-  fetchConversations()
+  fetchConversations().then(() => {
+    // 恢复刷新前的对话状态
+    const savedId = localStorage.getItem(CURRENT_CONV_KEY)
+    if (savedId) {
+      const id = parseInt(savedId, 10)
+      // 确认这个 id 还在列表中（未被删除）
+      if (conversations.value.some(c => c.id === id)) {
+        loadConversation(id)
+      } else {
+        localStorage.removeItem(CURRENT_CONV_KEY)
+      }
+    }
+  })
 })
 
 const fetchConversations = async () => {
@@ -301,6 +315,10 @@ const loadConversation = async (id: number) => {
     currentConvTitle.value = res.data.title
     difyConversationId.value = res.data.dify_conversation_id || ''
     messages.value = res.data.history || []
+    
+    // 保存到 localStorage
+    localStorage.setItem(CURRENT_CONV_KEY, res.data.id.toString())
+    
     scrollToBottom()
   } catch (error) {
     ElMessage.error('加载对话失败')
@@ -313,6 +331,7 @@ const startNewChat = () => {
   difyConversationId.value = ''
   messages.value = []
   userInput.value = ''
+  localStorage.removeItem(CURRENT_CONV_KEY)
 }
 
 const syncConversation = async () => {
@@ -326,6 +345,10 @@ const syncConversation = async () => {
       })
       currentConvId.value = res.data.id
       currentConvTitle.value = res.data.title
+      
+      // 保存新对话 ID 到 localStorage
+      localStorage.setItem(CURRENT_CONV_KEY, res.data.id.toString())
+      
       await fetchConversations()
     } catch (e) {
       console.error(e)
