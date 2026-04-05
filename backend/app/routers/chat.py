@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/global-chat", tags=["global_chat"])
 class ConversationCreate(BaseModel):
     title: Optional[str] = None
     dify_conversation_id: Optional[str] = None
+    history: Optional[List[Any]] = None
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
@@ -59,7 +60,8 @@ async def get_conversation(conv_id: int, db: Session = Depends(get_db)):
 async def create_conversation(payload: ConversationCreate, db: Session = Depends(get_db)):
     conv = GlobalConversation(
         title=payload.title or "新对话",
-        dify_conversation_id=payload.dify_conversation_id
+        dify_conversation_id=payload.dify_conversation_id,
+        history=json.dumps(payload.history, ensure_ascii=False) if payload.history else None
     )
     db.add(conv)
     db.commit()

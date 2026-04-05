@@ -231,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onActivated, nextTick } from 'vue'
 import { ChatDotRound, ChatLineSquare, User, Cpu, Plus, Top, Loading, Link, Paperclip, Picture, Document, Close, Expand, Fold, Star, StarFilled, MoreFilled, EditPen, Delete, Clock, Download } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -282,7 +282,21 @@ const recentConversations = computed(() => conversations.value.filter(c => !c.is
 
 const CURRENT_CONV_KEY = 'ig_current_global_chat_id'
 
+// 定义组件名，供 keep-alive 使用
+defineOptions({
+  name: 'GlobalChatView'
+})
+
 onMounted(() => {
+  initConversation()
+})
+
+onActivated(() => {
+  // 从其他页面切换回来时，确保列表最新
+  fetchConversations()
+})
+
+const initConversation = () => {
   fetchConversations().then(() => {
     // 恢复刷新前的对话状态
     const savedId = localStorage.getItem(CURRENT_CONV_KEY)
@@ -296,7 +310,7 @@ onMounted(() => {
       }
     }
   })
-})
+}
 
 const fetchConversations = async () => {
   try {
@@ -341,7 +355,8 @@ const syncConversation = async () => {
       const title = messages.value[0].content.substring(0, 20) + '...'
       const res = await axios.post(`${API_BASE}/global-chat/conversations`, {
         title: title,
-        dify_conversation_id: difyConversationId.value
+        dify_conversation_id: difyConversationId.value,
+        history: messages.value
       })
       currentConvId.value = res.data.id
       currentConvTitle.value = res.data.title
@@ -350,6 +365,7 @@ const syncConversation = async () => {
       localStorage.setItem(CURRENT_CONV_KEY, res.data.id.toString())
       
       await fetchConversations()
+      return // 创建时已经带了 history，不再需要后面的 PUT 请求
     } catch (e) {
       console.error(e)
       return

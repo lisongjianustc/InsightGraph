@@ -73,7 +73,11 @@ const route = useRoute()
       </header>
       
       <div class="p-8 flex-1 flex flex-col" :class="{'!p-0': route.name === 'capsule' || route.name === 'graph' || route.name === 'chat'}">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <keep-alive include="GlobalChatView">
+            <component :is="Component" />
+          </keep-alive>
+        </router-view>
       </div>
     </main>
   </div>
