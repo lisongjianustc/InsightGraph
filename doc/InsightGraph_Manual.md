@@ -13,73 +13,78 @@ InsightGraph 是一个将自动化信息获取（RSS/爬虫）、信息整理与
 
 ---
 
-## 二、 基础运维操作
+## 2. 环境部署
 
-系统的所有后端及自动化服务均运行在 Docker 容器中。我们有两个 Docker Compose 编排文件：
-- 主编排文件：`InsightGraph/docker-compose.yml` (包含 PostgreSQL, Redis, n8n, FastAPI)
-- Dify 编排文件：`InsightGraph/dify-source/docker/docker-compose.yaml`
+本项目已经实现了极度优雅的容器化整合部署。整个系统（包含后端服务、向量数据库以及内置的 Dify AI 大脑）全部集成在一个 Docker Compose 编排网络中，提供“一键拉起”的极简体验。
 
-### 1. 启动服务
+### 2.1 一键初始化 (推荐)
 
-**启动主业务服务 (n8n + FastAPI + 数据库)**
-在项目根目录 `InsightGraph/` 下执行：
+针对全新的服务器或本地开发环境，我们提供了一键初始化的脚本。它会自动检查环境、创建挂载目录并分配必要的权限。
+
+在项目根目录下执行：
 ```bash
-docker compose up -d --build
+./scripts/init.sh
 ```
 
-**启动 Dify 服务**
-进入 Dify 目录执行：
+脚本执行完成后，会自动为您复制 `.env.example` 到 `.env`（如果您本地还没有的话），并询问您是否立即拉起所有的 Docker 容器。
+
+### 2.2 手动部署 (如果未使用 init.sh)
+
+如果您希望手动控制部署流程，请按照以下步骤执行：
+
+1. **环境准备**
+   确保您的设备已安装 `Docker` 和 `Docker Compose`。
+
+2. **创建数据挂载目录**
+   为了防止数据丢失，必须在宿主机创建持久化目录：
+   ```bash
+   mkdir -p data/postgres data/redis dify-source/docker/volumes
+   mkdir -p backend/uploads/capsules backend/uploads/documents
+   ```
+
+3. **配置文件准备**
+   由于我们已经将 Dify 引擎内置到了网络中，您需要关注两份配置文件：
+   - 复制根目录的 `.env.example` 到 `.env`（主系统配置）
+   - 进入 `dify-source/docker`，将其中的 `.env.example` 复制为 `.env`（Dify 引擎配置）
+
+4. **启动服务**
+   回到项目根目录，只需执行一行命令，即可拉起由 14 个容器组成的庞大生态（包括 InsightGraph 后端、主 PG 数据库、Dify 全家桶等）：
+   ```bash
+   docker compose up -d --build
+   ```
+
+启动后，您可以使用 `docker ps` 查看容器状态，或通过浏览器访问 `http://localhost:5001` 来初始化您的 Dify 后台。
+
+---
+
+## 3. 系统灾备与运维 (DevOps)
+
+针对个人知识库这类极度重要的数据资产，我们内置了企业级的运维脚本集。它们位于 `scripts/` 目录下。
+
+### 3.1 一键完整备份 (`backup.sh`)
+本脚本会将整个系统（包括关系数据库、向量图谱、所有本地附件、以及内置 Dify 产生的所有配置与对话数据）打包成一个时间戳文件夹。
+
+**手动执行**：
 ```bash
-cd dify-source/docker
-docker compose up -d
+./scripts/backup.sh
+```
+执行后，您将在项目根目录的 `backups/` 下看到类似 `20260405_120000/` 的完整备份包。
+
+**自动化定时备份 (Cron)**：
+如果您希望每天凌晨 3 点自动备份，并在 7 天后自动清理旧数据，请通过 `crontab -e` 添加：
+```bash
+0 3 * * * bash /您的完整项目路径/scripts/backup.sh >> /您的完整项目路径/backups/backup.log 2>&1
 ```
 
-**启动前端 Web 界面 (开发模式)**
-目前前端尚未打包进 Docker，需要在本地运行：
+### 3.2 灾难恢复 (`restore.sh`)
+当发生数据损坏或迁移到新电脑时，您可以通过此脚本一键从备份包中安全恢复。
+
+**用法**：
 ```bash
-cd frontend
-npm run dev
+./scripts/restore.sh <备份文件夹名>
+# 例如: ./scripts/restore.sh 20260405_120000
 ```
-前端启动后，访问：[http://localhost:5173](http://localhost:5173)
-
-### 2. 停止服务
-
-停止主业务服务：
-```bash
-# 在 InsightGraph 根目录执行
-docker compose down
-```
-
-停止 Dify 服务：
-```bash
-# 在 dify-source/docker 目录执行
-docker compose down
-```
-
-### 3. 重启单个模块
-
-如果你只修改了 FastAPI 的代码（比如 `backend/main.py`），不需要重启整个系统，只需重启该容器：
-```bash
-# 在 InsightGraph 根目录执行
-docker restart insight_backend
-```
-
-重启 n8n：
-```bash
-docker restart insight_n8n
-```
-
-### 4. 查看日志排错
-
-如果你发现点击“整合进知识库”没有反应，可以查看 FastAPI 的日志：
-```bash
-docker logs -f insight_backend
-```
-
-查看 n8n 抓取日志：
-```bash
-docker logs -f insight_n8n
-```
+*注意：恢复操作会自动停止所有业务容器、清空现有的数据库及所有本地挂载数据，并从备份文件中覆盖恢复。请谨慎操作。*
 
 ---
 
@@ -123,18 +128,25 @@ docker logs -f insight_n8n
 
 ---
 
-## 四、 常见问题 (FAQ)
+## 4. 常见问题排查 (Troubleshooting)
 
-**Q: 为什么点击“整合进知识库”后，Dify 里面没有内容？**
-A: 请检查两点：
-1. 确保 `.env` 中的 `DIFY_API_KEY` 是正确知识库的密钥，并且重启了 `insight_backend`。
-2. 使用 `docker logs insight_backend` 查看日志，是否有报错提示（如连接被拒绝或 401 权限错误）。如果在 Docker 内部无法通过 `localhost` 访问 Dify，请将 `.env` 中的 `DIFY_API_URL` 修改为宿主机的内网 IP，例如 `http://192.168.x.x:5001/v1`。
+### 4.1 端口占用问题
+在执行 `docker compose up -d` 时，如果遇到类似 `Bind for 0.0.0.0:xxxx failed: port is already allocated` 的错误，说明该端口被其他服务占用。
+**解决办法**：编辑根目录的 `docker-compose.yml`，找到冲突的服务并修改映射端口。例如将 `5433:5432` 修改为 `5434:5432`。
 
-**Q: 如何清空或重置数据库？**
-A: 如果需要彻底清理所有抓取的数据，可以删除持久化挂载的目录：
+### 4.2 权限不足 (Permission Denied)
+如果在挂载 `data/n8n` 或 `dify-source/docker/volumes/` 目录时遇到权限错误。
+**解决办法**：使用随项目提供的 `scripts/init.sh` 进行初始化，它会自动为您分配正确的 UID（如 1000）。
+
+### 4.3 查看后台日志
+如果您在界面上点击操作后没有反应，可以通过查看 Docker 日志来排查问题：
 ```bash
-docker compose down
-sudo rm -rf data/postgres
-docker compose up -d
+# 查看主业务后端日志
+docker logs -f insight_backend
+
+# 查看自动抓取与飞书推送日志
+docker logs -f insight_n8n
+
+# 查看 Dify 核心接口日志
+docker logs -f insightgraph-api-1
 ```
-*(警告：这将清空所有未入库的 Feed 记录)*
