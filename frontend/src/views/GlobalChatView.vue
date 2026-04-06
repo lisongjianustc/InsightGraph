@@ -661,11 +661,10 @@ const sendMessage = async () => {
     })
 
     if (!response.body) throw new Error('No response body')
-    isTyping.value = false
-    
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
+      
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
 
     while (true) {
       const { done, value } = await reader.read()
