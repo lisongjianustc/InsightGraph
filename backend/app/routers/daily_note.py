@@ -24,6 +24,8 @@ class DailyNoteUpdate(BaseModel):
 class AIRewriteRequest(BaseModel):
     draft_content: str
     reference_capsule_ids: List[int]
+    reference_feed_ids: List[int]
+    reference_original_ids: List[int]
     format_type: str # 'card', 'blog', 'polish'
 
 @router.get("/dates")
@@ -105,12 +107,27 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
     # [新增] 查出引用的精读文献内容
     import re
     from app.models.feed import FeedItem
-    feed_id_regex = re.compile(r'\[\[feed:(\d+)\]\]')
-    feed_ids = [int(x) for x in feed_id_regex.findall(request.draft_content)]
     
+    # 获取显式通过 API 传过来的 feed_ids 和 original_ids
+    feed_ids = set(request.reference_feed_ids)
+    original_ids = set(request.reference_original_ids)
+    
+    # 获取通过草稿内正文引用的 feed_ids 和 original_ids
+    feed_id_regex = re.compile(r'\[\[feed:(\d+)\]\]')
+    original_id_regex = re.compile(r'\[\[original:(\d+)\]\]')
+    
+    for x in feed_id_regex.findall(request.draft_content):
+        feed_ids.add(int(x))
+    for x in original_id_regex.findall(request.draft_content):
+        original_ids.add(int(x))
+        
     feeds = []
+    originals = []
+    
     if feed_ids:
-        feeds = db.query(FeedItem).filter(FeedItem.id.in_(feed_ids)).all()
+        feeds = db.query(FeedItem).filter(FeedItem.id.in_(list(feed_ids))).all()
+    if original_ids:
+        originals = db.query(FeedItem).filter(FeedItem.id.in_(list(original_ids))).all()
         
     reference_texts = []
     for c in capsules:
@@ -118,7 +135,11 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
         
     for f in feeds:
         content = f.deep_summary if f.deep_summary else f.skim_summary
-        reference_texts.append(f"<reference type='feed' title='{f.title}'>\n{content}\n</reference>")
+        reference_texts.append(f"<reference type='feed_summary' title='{f.title}'>\n{content}\n</reference>")
+        
+    for o in originals:
+        content = o.full_text if o.full_text else (o.deep_summary or o.skim_summary)
+        reference_texts.append(f"<reference type='feed_original_text' title='{o.title}'>\n{content}\n</reference>")
         
     context = "\n".join(reference_texts) if reference_texts else "无额外参考资料"
     

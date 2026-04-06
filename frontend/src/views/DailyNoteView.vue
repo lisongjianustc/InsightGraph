@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { Calendar, MagicStick, SwitchButton, Search } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
@@ -29,6 +29,11 @@ const searchQuery = ref('')
 const recentCapsules = ref<any[]>([])
 const recentFeeds = ref<any[]>([])
 const searchTimeout = ref<number | null>(null)
+
+// Multi-select for AI
+const selectedCapsuleIds = ref<number[]>([])
+const selectedFeedIds = ref<number[]>([])
+const selectedOriginalIds = ref<number[]>([])
 
 // AI Writer
 const showAIPanel = ref(false)
@@ -158,21 +163,43 @@ const handleDragStartFeed = (e: DragEvent, feed: any) => {
   }
 }
 
+const handleDragStartOriginal = (e: DragEvent, feed: any) => {
+  if (e.dataTransfer) {
+    e.dataTransfer.setData('text/plain', `> [!abstract] ${feed.title || '文献原文'}\n> ${feed.skim_summary || '查看原文详细内容'}\n\n[[original:${feed.id}]]\n`)
+  }
+}
+
+const totalSelectedItems = computed(() => {
+  return selectedCapsuleIds.value.length + selectedFeedIds.value.length + selectedOriginalIds.value.length
+})
+
+const handleQuickAI = () => {
+  showAIPanel.value = true
+}
+
 const triggerAIRewrite = async () => {
-  if (!content.value.trim()) {
-    ElMessage.warning('请先写点内容再呼叫 AI')
+  // 如果没有勾选素材，也没有写草稿，则提示
+  const totalSelected = selectedCapsuleIds.value.length + selectedFeedIds.value.length + selectedOriginalIds.value.length
+  if (!content.value.trim() && totalSelected === 0) {
+    ElMessage.warning('请先写点草稿，或者在右侧勾选一些素材再呼叫 AI')
     return
   }
   
   aiGenerating.value = true
   
-  // Extract capsule IDs from content
+  // 从编辑器文本中通过正则提取出的隐式引用 ID
   const capsuleIdRegex = /\[\[capsule:(\d+)\]\]/g
-  const refIds = []
+  const feedIdRegex = /\[\[feed:(\d+)\]\]/g
+  const originalIdRegex = /\[\[original:(\d+)\]\]/g
+  
+  const refCapsuleIds = new Set<number>(selectedCapsuleIds.value)
+  const refFeedIds = new Set<number>(selectedFeedIds.value)
+  const refOriginalIds = new Set<number>(selectedOriginalIds.value)
+  
   let match
-  while ((match = capsuleIdRegex.exec(content.value)) !== null) {
-    refIds.push(parseInt(match[1]))
-  }
+  while ((match = capsuleIdRegex.exec(content.value)) !== null) refCapsuleIds.add(parseInt(match[1]))
+  while ((match = feedIdRegex.exec(content.value)) !== null) refFeedIds.add(parseInt(match[1]))
+  while ((match = originalIdRegex.exec(content.value)) !== null) refOriginalIds.add(parseInt(match[1]))
   
   try {
     const response = await fetch(`${API_BASE}/daily-notes/ai-rewrite`, {
@@ -180,7 +207,9 @@ const triggerAIRewrite = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         draft_content: content.value,
-        reference_capsule_ids: refIds,
+        reference_capsule_ids: Array.from(refCapsuleIds),
+        reference_feed_ids: Array.from(refFeedIds),
+        reference_original_ids: Array.from(refOriginalIds),
         format_type: aiFormat.value
       })
     })
@@ -314,11 +343,12 @@ const triggerAIRewrite = async () => {
         <el-radio-group v-model="activeTab" size="small" class="w-full">
           <el-radio-button label="capsule" class="flex-1">闪念胶囊</el-radio-button>
           <el-radio-button label="feed" class="flex-1">文献摘要</el-radio-button>
+          <el-radio-button label="original" class="flex-1">文献原文</el-radio-button>
         </el-radio-group>
-        <p class="text-xs text-gray-500 mt-3">将下方卡片拖拽至左侧编辑器中即可引用</p>
+        <p class="text-xs text-gray-500 mt-3">拖拽或勾选卡片，召唤 AI 写作</p>
       </div>
       
-      <div class="flex-1 overflow-y-auto p-4 space-y-3">
+      <div class="flex-1 overflow-y-auto p-4 space-y-3 pb-20">
         <!-- 胶囊列表 -->
         <template v-if="activeTab === 'capsule'">
           <div v-if="recentCapsules.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配胶囊</div>
@@ -327,14 +357,17 @@ const triggerAIRewrite = async () => {
             :key="'cap-'+capsule.id"
             draggable="true"
             @dragstart="handleDragStartCapsule($event, capsule)"
-            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all"
+            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
           >
-            <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
-            <div class="text-xs text-gray-500 line-clamp-3">{{ capsule.content }}</div>
+            <el-checkbox v-model="selectedCapsuleIds" :label="capsule.id" :value="capsule.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
+              <div class="text-xs text-gray-500 line-clamp-3">{{ capsule.content }}</div>
+            </div>
           </div>
         </template>
         
-        <!-- 文献列表 -->
+        <!-- 文献摘要列表 -->
         <template v-if="activeTab === 'feed'">
           <div v-if="recentFeeds.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配文献</div>
           <div 
@@ -342,12 +375,41 @@ const triggerAIRewrite = async () => {
             :key="'feed-'+feed.id"
             draggable="true"
             @dragstart="handleDragStartFeed($event, feed)"
-            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all"
+            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
           >
-            <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
-            <div class="text-xs text-gray-500 line-clamp-3">{{ feed.skim_summary || feed.summary || '暂无摘要' }}</div>
+            <el-checkbox v-model="selectedFeedIds" :label="feed.id" :value="feed.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
+              <div class="text-xs text-gray-500 line-clamp-3">{{ feed.skim_summary || feed.summary || '暂无摘要' }}</div>
+            </div>
           </div>
         </template>
+
+        <!-- 文献原文列表 -->
+        <template v-if="activeTab === 'original'">
+          <div v-if="recentFeeds.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配文献</div>
+          <div 
+            v-for="feed in recentFeeds" 
+            :key="'orig-'+feed.id"
+            draggable="true"
+            @dragstart="handleDragStartOriginal($event, feed)"
+            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
+          >
+            <el-checkbox v-model="selectedOriginalIds" :label="feed.id" :value="feed.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
+              <div class="text-xs text-indigo-500 font-medium">包含完整深度解析原文</div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- 底部悬浮操作栏 -->
+      <div v-if="totalSelectedItems > 0" class="absolute bottom-4 right-4 w-72 bg-gray-800 text-white rounded-xl shadow-2xl p-3 flex items-center justify-between z-40 transition-all">
+        <div class="text-sm font-medium">已选择 {{ totalSelectedItems }} 项素材</div>
+        <el-button type="primary" size="small" @click="handleQuickAI">
+          <el-icon class="mr-1"><MagicStick /></el-icon> AI 创作
+        </el-button>
       </div>
     </div>
   </div>
@@ -374,6 +436,10 @@ const triggerAIRewrite = async () => {
   height: 100%;
   border: none;
   background: transparent;
+}
+.typora-editor :deep(.bytemd-fullscreen) {
+  background: white !important;
+  z-index: 9999 !important;
 }
 .typora-editor :deep(.bytemd-toolbar) {
   border-bottom: 1px solid #f3f4f6;
