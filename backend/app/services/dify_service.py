@@ -380,15 +380,21 @@ class DifyService:
         if conversation_id:
             payload["conversation_id"] = conversation_id
             
+        timeout_config = httpx.Timeout(600.0, connect=60.0)
+            
         try:
-            async with httpx.AsyncClient() as client:
-                async with client.stream("POST", endpoint, json=payload, headers=headers, timeout=120.0) as response:
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
+                async with client.stream("POST", endpoint, json=payload, headers=headers) as response:
                     response.raise_for_status()
                     async for chunk in response.aiter_text():
                         yield chunk
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Dify Global Chat API Error: {e.response.status_code} - {e.response.text}")
+            yield f'data: {{"event": "message", "answer": "\\n\\n**[API 错误]**：{e.response.status_code} - {e.response.text}"}}\n\n'
+            yield 'data: {"event": "message_end"}\n\n'
         except Exception as e:
-            logger.error(f"Failed to connect to Dify Global Chat API: {str(e)}")
-            yield f'data: {{"event": "message", "answer": "\\n\\n**[连接错误]**：{str(e)}"}}\n\n'
+            logger.error(f"Failed to connect to Dify Global Chat API: {repr(e)}")
+            yield f'data: {{"event": "message", "answer": "\\n\\n**[连接错误]**：{repr(e)}"}}\n\n'
             yield 'data: {"event": "message_end"}\n\n'
 
     async def generate_tag_definition(self, tag_name: str) -> str:
