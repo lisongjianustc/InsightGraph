@@ -202,6 +202,9 @@ const triggerAIRewrite = async () => {
   while ((match = originalIdRegex.exec(content.value)) !== null) refOriginalIds.add(parseInt(match[1]))
   
   try {
+    // Show an initial engaging message while waiting for TTFT (Time To First Token)
+    content.value += '\n\n---\n**🧠 AI 正在深度阅读并构思文章框架，请稍候...**\n\n'
+    
     const response = await fetch(`${API_BASE}/daily-notes/ai-rewrite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -225,8 +228,7 @@ const triggerAIRewrite = async () => {
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
     
-    // Clear content or append, depending on UX. Let's append for now to not lose draft.
-    content.value += '\n\n---\n**AI 生成结果：**\n\n'
+    let firstTokenReceived = false
 
     const processLines = (lines: string[]) => {
       for (const line of lines) {
@@ -236,6 +238,11 @@ const triggerAIRewrite = async () => {
           try {
             const data = JSON.parse(dataStr)
             if (data.event === 'message') {
+              if (!firstTokenReceived) {
+                // Remove the waiting message when the first token arrives
+                content.value = content.value.replace('\n\n---\n**🧠 AI 正在深度阅读并构思文章框架，请稍候...**\n\n', '\n\n---\n**AI 生成结果：**\n\n')
+                firstTokenReceived = true
+              }
               content.value += data.answer
             }
           } catch (e) {

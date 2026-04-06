@@ -139,6 +139,9 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
         
     for o in originals:
         content = o.full_text if o.full_text else o.skim_summary
+        # 强制截断超长原文，防止 Dify 大模型处理缓慢或 OOM
+        if content and len(content) > 10000:
+            content = content[:10000] + "\n...[内容已截断]..."
         reference_texts.append(f"<reference type='feed_original_text' title='{o.title}'>\n{content}\n</reference>")
         
     context = "\n".join(reference_texts) if reference_texts else "无额外参考资料"
@@ -154,7 +157,9 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
     else:
         system_prompt += "要求：按照用户的要求对文本进行优化。"
 
-    query = f"<reference_materials>\n{context}\n</reference_materials>\n\n<user_draft>\n{request.draft_content}\n</user_draft>\n\n{system_prompt}\n请开始处理："
+    system_prompt += "\n注意：请不要输出任何客套话（如“好的，我正在阅读”、“这就为您生成”等），直接开始输出最终的 Markdown 格式正文。"
+
+    query = f"<reference_materials>\n{context}\n</reference_materials>\n\n<user_draft>\n{request.draft_content}\n</user_draft>\n\n{system_prompt}\n请立刻开始输出最终的 Markdown 格式正文："
     
     return StreamingResponse(
         dify_client.global_chat_stream(query=query),
