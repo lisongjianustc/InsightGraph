@@ -179,16 +179,16 @@
                 </div>
               </div>
               
-              <!-- Action Buttons (Hover) -->
-              <div v-if="editingMsgIndex !== index" class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity mt-1" :class="{'flex-row-reverse': msg.role === 'user'}">
+              <!-- Action Buttons -->
+              <div v-if="editingMsgIndex !== index" class="flex items-center gap-2 mt-1 text-gray-400 transition-opacity" :class="{'flex-row-reverse': msg.role === 'user', 'opacity-50': isTyping}">
                 <el-tooltip v-if="msg.role === 'user' && !isTyping" content="编辑并重发" placement="bottom">
-                  <el-button text circle size="small" @click="startEditMsg(index)">
+                  <el-button text circle size="small" @click="startEditMsg(index)" class="hover:text-indigo-600">
                     <el-icon><EditPen /></el-icon>
                   </el-button>
                 </el-tooltip>
                 
                 <el-tooltip v-if="msg.role === 'assistant' && index === messages.length - 1 && !isTyping" content="重新生成" placement="bottom">
-                  <el-button text circle size="small" @click="regenerateMsg">
+                  <el-button text circle size="small" @click="regenerateMsg" class="hover:text-indigo-600">
                     <el-icon><RefreshRight /></el-icon>
                   </el-button>
                 </el-tooltip>
@@ -200,8 +200,11 @@
             <div class="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mt-1">
               <el-icon class="is-loading"><Loading /></el-icon>
             </div>
-            <div class="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-5 py-3 text-gray-500 text-sm flex items-center gap-2 shadow-sm">
-              正在思考检索知识库...
+            <div class="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-5 py-3 text-gray-500 text-sm flex flex-col gap-3 shadow-sm items-start">
+              <div class="flex items-center gap-2">正在思考检索知识库...</div>
+              <el-button size="small" type="danger" plain @click="stopGeneration">
+                <el-icon class="mr-1"><VideoPause /></el-icon> 停止生成
+              </el-button>
             </div>
           </div>
         </div>
@@ -209,12 +212,6 @@
 
       <!-- Input Area -->
       <div class="w-full shrink-0 bg-white p-4 pt-0 relative">
-        <div v-if="isTyping" class="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
-          <el-button round size="small" type="info" plain @click="stopGeneration" class="shadow-md !bg-white/90 backdrop-blur-sm border-gray-200">
-            <el-icon class="mr-1"><VideoPause /></el-icon> 停止生成
-          </el-button>
-        </div>
-        
         <div class="max-w-4xl mx-auto relative shadow-sm rounded-xl border border-gray-200 bg-white overflow-hidden transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
           <!-- Uploaded Files Preview -->
           <div v-if="uploadedFiles.length > 0" class="flex flex-wrap gap-2 p-3 bg-gray-50 border-b border-gray-100">
