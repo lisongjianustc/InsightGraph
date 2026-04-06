@@ -41,11 +41,11 @@ def get_daily_note(note_date: date, db: Session = Depends(get_db)):
         return {"date": note_date, "content": ""}
     return {"date": note.date, "content": note.content}
 
-def _update_dify_doc(note_id: int, content: str, dataset_id: str):
+async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
     try:
         from app.core.database import get_db
         dify_client = DifyService()
-        new_doc_id = dify_client.save_text_to_dataset(content, dataset_id)
+        new_doc_id = await dify_client.save_text_to_dataset(content, dataset_id)
         if new_doc_id:
             db_gen = get_db()
             db_session = next(db_gen)
@@ -134,11 +134,11 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
         reference_texts.append(f"<reference type='capsule' title='{c.title}'>\n{c.content}\n</reference>")
         
     for f in feeds:
-        content = f.deep_summary if f.deep_summary else f.skim_summary
+        content = f.skim_summary if f.skim_summary else "无摘要"
         reference_texts.append(f"<reference type='feed_summary' title='{f.title}'>\n{content}\n</reference>")
         
     for o in originals:
-        content = o.full_text if o.full_text else (o.deep_summary or o.skim_summary)
+        content = o.full_text if o.full_text else o.skim_summary
         reference_texts.append(f"<reference type='feed_original_text' title='{o.title}'>\n{content}\n</reference>")
         
     context = "\n".join(reference_texts) if reference_texts else "无额外参考资料"

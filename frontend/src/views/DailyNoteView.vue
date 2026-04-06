@@ -214,6 +214,11 @@ const triggerAIRewrite = async () => {
       })
     })
 
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(`请求失败 (${response.status}): ${errText}`)
+    }
+    
     if (!response.body) throw new Error('No response body')
     
     const reader = response.body.getReader()
@@ -223,19 +228,11 @@ const triggerAIRewrite = async () => {
     // Clear content or append, depending on UX. Let's append for now to not lose draft.
     content.value += '\n\n---\n**AI 生成结果：**\n\n'
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      
+    const processLines = (lines: string[]) => {
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const dataStr = line.slice(6).trim()
           if (!dataStr) continue
-          
           try {
             const data = JSON.parse(dataStr)
             if (data.event === 'message') {
@@ -247,13 +244,28 @@ const triggerAIRewrite = async () => {
         }
       }
     }
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        if (buffer) {
+          processLines(buffer.split('\n'))
+        }
+        break
+      }
+      
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      processLines(lines)
+    }
     
     saveNote() // Save the AI result
     
-  } catch (e) {
-    console.error(e)
-    ElMessage.error('AI 生成失败')
-  } finally {
+  } catch (e: any) {
+      console.error(e)
+      ElMessage.error(`AI 生成失败: ${e.message || e}`)
+    } finally {
     aiGenerating.value = false
     showAIPanel.value = false
   }
