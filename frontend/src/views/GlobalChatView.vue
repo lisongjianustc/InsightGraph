@@ -136,28 +136,62 @@
             <p class="text-sm mt-2">试着问我："最近我读过哪些关于大模型的论文？" 或 "总结一下我存的闪念胶囊"</p>
           </div>
 
-          <div v-for="(msg, index) in messages" :key="index" class="flex gap-4" :class="{'flex-row-reverse': msg.role === 'user'}">
+          <div v-for="(msg, index) in messages" :key="index" class="flex gap-4 group" :class="{'flex-row-reverse': msg.role === 'user'}">
             <!-- Avatar -->
             <div class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center mt-1"
                  :class="msg.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'">
               <el-icon><User v-if="msg.role === 'user'" /><Cpu v-else /></el-icon>
             </div>
             
-            <!-- Bubble -->
-            <div class="max-w-[80%] rounded-2xl px-5 py-3 shadow-sm"
-                 :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm'">
-              <div class="prose prose-sm max-w-none" :class="{'prose-invert': msg.role === 'user'}" v-html="renderMarkdown(msg.content)"></div>
+            <!-- Bubble and Actions -->
+            <div class="flex flex-col gap-1 max-w-[80%]" :class="{'items-end': msg.role === 'user'}">
               
-              <!-- Citations / References (If any) -->
-              <div v-if="msg.role === 'assistant' && msg.citations && msg.citations.length > 0" class="mt-3 pt-3 border-t border-gray-200/50">
-                <div class="text-xs text-gray-500 font-medium mb-2 flex items-center gap-1">
-                  <el-icon><Link /></el-icon> 引用来源：
+              <!-- Editing Mode -->
+              <div v-if="editingMsgIndex === index && msg.role === 'user'" class="w-full min-w-[300px] sm:min-w-[400px] bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <el-input
+                  v-model="editMsgContent"
+                  type="textarea"
+                  :autosize="{ minRows: 2, maxRows: 6 }"
+                  placeholder="编辑消息..."
+                  class="mb-3"
+                />
+                <div class="flex justify-end gap-2">
+                  <el-button size="small" @click="cancelEditMsg">取消</el-button>
+                  <el-button type="primary" size="small" @click="saveAndResendMsg(index)">发送并重新生成</el-button>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                  <el-tag v-for="(cite, cIdx) in msg.citations" :key="cIdx" size="small" type="info" effect="plain" class="max-w-[200px] truncate" :title="cite.title">
-                    {{ cite.title }}
-                  </el-tag>
+              </div>
+              
+              <!-- Normal Bubble -->
+              <div v-else class="rounded-2xl px-5 py-3 shadow-sm relative"
+                   :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm'">
+                <div class="prose prose-sm max-w-none" :class="{'prose-invert': msg.role === 'user'}" v-html="renderMarkdown(msg.content)"></div>
+                
+                <!-- Citations / References (If any) -->
+                <div v-if="msg.role === 'assistant' && msg.citations && msg.citations.length > 0" class="mt-3 pt-3 border-t border-gray-200/50">
+                  <div class="text-xs text-gray-500 font-medium mb-2 flex items-center gap-1">
+                    <el-icon><Link /></el-icon> 引用来源：
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <el-tag v-for="(cite, cIdx) in msg.citations" :key="cIdx" size="small" type="info" effect="plain" class="max-w-[200px] truncate" :title="cite.title">
+                      {{ cite.title }}
+                    </el-tag>
+                  </div>
                 </div>
+              </div>
+              
+              <!-- Action Buttons (Hover) -->
+              <div v-if="editingMsgIndex !== index" class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity mt-1" :class="{'flex-row-reverse': msg.role === 'user'}">
+                <el-tooltip v-if="msg.role === 'user' && !isTyping" content="编辑并重发" placement="bottom">
+                  <el-button text circle size="small" @click="startEditMsg(index)">
+                    <el-icon><EditPen /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                
+                <el-tooltip v-if="msg.role === 'assistant' && index === messages.length - 1 && !isTyping" content="重新生成" placement="bottom">
+                  <el-button text circle size="small" @click="regenerateMsg">
+                    <el-icon><RefreshRight /></el-icon>
+                  </el-button>
+                </el-tooltip>
               </div>
             </div>
           </div>
@@ -174,7 +208,13 @@
       </div>
 
       <!-- Input Area -->
-      <div class="w-full shrink-0 bg-white p-4 pt-0">
+      <div class="w-full shrink-0 bg-white p-4 pt-0 relative">
+        <div v-if="isTyping" class="absolute -top-12 left-1/2 -translate-x-1/2 z-20">
+          <el-button round size="small" type="info" plain @click="stopGeneration" class="shadow-md !bg-white/90 backdrop-blur-sm border-gray-200">
+            <el-icon class="mr-1"><VideoPause /></el-icon> 停止生成
+          </el-button>
+        </div>
+        
         <div class="max-w-4xl mx-auto relative shadow-sm rounded-xl border border-gray-200 bg-white overflow-hidden transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
           <!-- Uploaded Files Preview -->
           <div v-if="uploadedFiles.length > 0" class="flex flex-wrap gap-2 p-3 bg-gray-50 border-b border-gray-100">
@@ -232,7 +272,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, nextTick } from 'vue'
-import { ChatDotRound, ChatLineSquare, User, Cpu, Plus, Top, Loading, Link, Paperclip, Picture, Document, Close, Expand, Fold, Star, StarFilled, MoreFilled, EditPen, Delete, Clock, Download } from '@element-plus/icons-vue'
+import { ChatDotRound, ChatLineSquare, User, Cpu, Plus, Top, Loading, Link, Paperclip, Picture, Document, Close, Expand, Fold, Star, StarFilled, MoreFilled, EditPen, Delete, Clock, Download, RefreshRight, VideoPause } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import axios from 'axios'
@@ -275,10 +315,14 @@ const chatScrollRef = ref<HTMLElement | null>(null)
 // 用于控制流式请求的中断
 let abortController: AbortController | null = null
 
-// 编辑相关
+// 编辑相关 (Conversation Title)
 const editingConvId = ref<number | null>(null)
 const editingTitle = ref('')
 const editInputRef = ref<any>(null)
+
+// 消息编辑与重发相关
+const editingMsgIndex = ref<number | null>(null)
+const editMsgContent = ref('')
 
 const favoriteConversations = computed(() => conversations.value.filter(c => c.is_favorite))
 const recentConversations = computed(() => conversations.value.filter(c => !c.is_favorite))
@@ -521,6 +565,59 @@ const scrollToBottom = () => {
       chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight
     }
   })
+}
+
+const stopGeneration = () => {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+    isTyping.value = false
+    const lastMsgIndex = messages.value.length - 1
+    if (messages.value[lastMsgIndex] && messages.value[lastMsgIndex].role === 'assistant') {
+      messages.value[lastMsgIndex].content += '\n\n**[已停止生成]**'
+      syncConversation()
+    }
+  }
+}
+
+const startEditMsg = (index: number) => {
+  editingMsgIndex.value = index
+  editMsgContent.value = messages.value[index].content
+}
+
+const cancelEditMsg = () => {
+  editingMsgIndex.value = null
+  editMsgContent.value = ''
+}
+
+const saveAndResendMsg = async (index: number) => {
+  if (!editMsgContent.value.trim() || isTyping.value) return
+  
+  // Truncate messages up to the edited one (exclusive)
+  messages.value = messages.value.slice(0, index)
+  
+  userInput.value = editMsgContent.value.trim()
+  editingMsgIndex.value = null
+  editMsgContent.value = ''
+  
+  await sendMessage()
+}
+
+const regenerateMsg = async () => {
+  if (isTyping.value || messages.value.length < 2) return
+  
+  const lastMsg = messages.value[messages.value.length - 1]
+  if (lastMsg.role === 'assistant') {
+    messages.value.pop()
+  }
+  
+  const lastUserMsg = messages.value.pop()
+  if (lastUserMsg) {
+    // If the message contains file references, extract them (mock logic, for text we just pass text)
+    // Actually, simple text regenerate is enough for now
+    userInput.value = lastUserMsg.content
+    await sendMessage()
+  }
 }
 
 const sendMessage = async () => {
