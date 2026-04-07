@@ -56,22 +56,28 @@
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <b>1. 🖥️ 桌面端沉浸阅读与编辑</b><br/>
-      <img src="https://images.unsplash.com/photo-1618477247222-accd0e1ae22d?auto=format&fit=crop&w=600&q=80" alt="Capsule Editor" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>1. 🖥️ 今日资讯与文献阅读 (Feed)</b><br/>
+      <img src="frontend/public/screenshots/feed_view.png" alt="Feed View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
     <td align="center" width="50%">
-      <b>2. 🌌 动态交互知识图谱</b><br/>
-      <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=600&q=80" alt="Knowledge Graph" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>2. 🌌 动态知识图谱 (Knowledge Graph)</b><br/>
+      <img src="frontend/public/screenshots/graph_view_1.png" alt="Knowledge Graph" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <b>3. 📄 智能原文件/解析切换</b><br/>
-      <img src="https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80" alt="PDF Preview" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>3. 🔗 节点下钻与概念释义</b><br/>
+      <img src="frontend/public/screenshots/graph_view_2.png" alt="Graph Node Detail" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
     <td align="center" width="50%">
-      <b>4. 🤖 溯源级全局多模态问答</b><br/>
-      <img src="https://images.unsplash.com/photo-1655720828018-edd2daec9349?auto=format&fit=crop&w=600&q=80" alt="Global Chat" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>4. 🤖 溯源级全局多模态问答 (Global Chat)</b><br/>
+      <img src="frontend/public/screenshots/chat_view.png" alt="Global Chat" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%" colspan="2">
+      <b>5. ⚙️ 全量实体与系统设置 (Settings)</b><br/>
+      <img src="frontend/public/screenshots/settings_view.png" alt="Settings View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 50%;">
     </td>
   </tr>
 </table>
