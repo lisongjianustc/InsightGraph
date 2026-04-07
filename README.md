@@ -51,33 +51,41 @@
 
 ## 📸 界面纵览 (Showcase)
 
-*(提示：你可以在项目目录创建 `docs/images/` 文件夹，放入你真实的系统截图来替换下方的高质感预览图。)*
-
 <table align="center">
   <tr>
     <td align="center" width="50%">
       <b>1. 🖥️ 今日资讯与文献阅读 (Feed)</b><br/>
-      <img src="frontend/public/screenshots/feed_view.png" alt="Feed View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <img src="doc/images/每日资讯.png" alt="Feed View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
     <td align="center" width="50%">
-      <b>2. 🌌 动态知识图谱 (Knowledge Graph)</b><br/>
-      <img src="frontend/public/screenshots/graph_view_1.png" alt="Knowledge Graph" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>2. ⚡ 闪念胶囊 (Capsule)</b><br/>
+      <img src="doc/images/闪念胶囊.png" alt="Capsule View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
   </tr>
   <tr>
     <td align="center" width="50%">
-      <b>3. 🔗 节点下钻与概念释义</b><br/>
-      <img src="frontend/public/screenshots/graph_view_2.png" alt="Graph Node Detail" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>3. 📅 每日笔记 (Daily Note)</b><br/>
+      <img src="doc/images/每日笔记.png" alt="Daily Note View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
     <td align="center" width="50%">
-      <b>4. 🤖 溯源级全局多模态问答 (Global Chat)</b><br/>
-      <img src="frontend/public/screenshots/chat_view.png" alt="Global Chat" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      <b>4. 🌌 动态知识图谱 (Knowledge Graph)</b><br/>
+      <img src="doc/images/知识图谱.png" alt="Knowledge Graph" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <b>5. 🔗 节点下钻与概念释义</b><br/>
+      <img src="doc/images/图谱节点.png" alt="Graph Node Detail" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    </td>
+    <td align="center" width="50%">
+      <b>6. 🤖 溯源级全局多模态问答 (Global Chat)</b><br/>
+      <img src="doc/images/全局知识库问答.png" alt="Global Chat" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     </td>
   </tr>
   <tr>
     <td align="center" width="50%" colspan="2">
-      <b>5. ⚙️ 全量实体与系统设置 (Settings)</b><br/>
-      <img src="frontend/public/screenshots/settings_view.png" alt="Settings View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 50%;">
+      <b>7. ⚙️ 全量实体与系统设置 (Settings)</b><br/>
+      <img src="doc/images/标签管理.png" alt="Settings View" style="border-radius: 8px; margin-top: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 50%;">
     </td>
   </tr>
 </table>
