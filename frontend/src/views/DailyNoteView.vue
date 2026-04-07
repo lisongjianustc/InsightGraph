@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { Calendar, MagicStick, SwitchButton, Search } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
@@ -18,9 +18,12 @@ const plugins = [gfm(), highlight()]
 // Status
 const selectedDate = ref(new Date())
 const content = ref('')
+const category = ref('未分类')
 const isSaving = ref(false)
 const saveTimeout = ref<number | null>(null)
 const datesWithNotes = ref<string[]>([])
+const viewMode = ref('calendar') // 'calendar' | 'category'
+const categoriesData = ref<any[]>([])
 
 // Reference drawer
 const showReferences = ref(true)
@@ -42,6 +45,7 @@ const aiFormat = ref('polish')
 
 onMounted(() => {
   fetchDates()
+  fetchCategories()
   fetchNote(formatDate(selectedDate.value))
   fetchRecentCapsules()
   fetchRecentFeeds()
@@ -62,13 +66,24 @@ const fetchDates = async () => {
   }
 }
 
+const fetchCategories = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/daily-notes/categories`)
+    categoriesData.value = res.data.categories || []
+  } catch (e) {
+    console.error('Failed to fetch categories', e)
+  }
+}
+
 const fetchNote = async (dateStr: string) => {
   try {
     const res = await axios.get(`${API_BASE}/daily-notes/${dateStr}`)
     content.value = res.data.content || ''
+    category.value = res.data.category || '未分类'
   } catch (e) {
     console.error('Failed to fetch note', e)
     content.value = ''
+    category.value = '未分类'
   }
 }
 
@@ -123,16 +138,27 @@ const saveNote = async () => {
   isSaving.value = true
   try {
     await axios.put(`${API_BASE}/daily-notes/${formatDate(selectedDate.value)}`, {
-      content: content.value
+      content: content.value,
+      category: category.value
     })
     if (!datesWithNotes.value.includes(formatDate(selectedDate.value)) && content.value.trim() !== '') {
       datesWithNotes.value.push(formatDate(selectedDate.value))
     }
+    // Refresh categories in background to keep counts/names updated
+    fetchCategories()
   } catch (e) {
     console.error('Failed to save note', e)
   } finally {
     isSaving.value = false
   }
+}
+
+const handleCategoryChange = (val: string) => {
+  category.value = val
+  if (saveTimeout.value) clearTimeout(saveTimeout.value)
+  saveTimeout.value = window.setTimeout(() => {
+    saveNote()
+  }, 1000)
 }
 
 const handleEditorChange = (v: string) => {
@@ -281,14 +307,17 @@ const triggerAIRewrite = async () => {
 
 <template>
   <div class="h-full flex overflow-hidden bg-white">
-    <!-- 左侧日历栏 -->
-    <div class="w-80 border-r border-gray-200 bg-gray-50/50 flex flex-col">
+    <!-- 左侧侧边栏 (日历/分类 切换) -->
+    <div class="w-80 border-r border-gray-200 bg-gray-50/50 flex flex-col shrink-0">
       <div class="p-4 border-b border-gray-200">
-        <h2 class="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <el-icon><Calendar /></el-icon> 日历漫游
-        </h2>
+        <el-radio-group v-model="viewMode" class="w-full flex">
+          <el-radio-button label="calendar" class="flex-1 text-center"><el-icon class="mr-1"><Calendar /></el-icon>日历</el-radio-button>
+          <el-radio-button label="category" class="flex-1 text-center"><el-icon class="mr-1"><Folder /></el-icon>分类</el-radio-button>
+        </el-radio-group>
       </div>
-      <div class="flex-1 overflow-y-auto p-4 custom-calendar">
+      
+      <!-- 日历视图 -->
+      <div v-show="viewMode === 'calendar'" class="flex-1 overflow-y-auto p-4 custom-calendar">
         <el-calendar v-model="selectedDate">
           <template #date-cell="{ data }">
             <div class="h-full w-full flex flex-col items-center justify-center relative">
@@ -298,17 +327,63 @@ const triggerAIRewrite = async () => {
           </template>
         </el-calendar>
       </div>
+
+      <!-- 分类视图 -->
+      <div v-show="viewMode === 'category'" class="flex-1 overflow-y-auto p-2">
+        <el-collapse accordion v-if="categoriesData.length > 0">
+          <el-collapse-item v-for="cat in categoriesData" :key="cat.name" :name="cat.name">
+            <template #title>
+              <div class="flex justify-between items-center w-full pr-2 font-medium text-gray-700">
+                <div class="flex items-center gap-2 truncate"><el-icon><FolderOpened /></el-icon> {{ cat.name }}</div>
+                <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{{ cat.count }}</span>
+              </div>
+            </template>
+            <div class="flex flex-col gap-1 pl-6 pr-2 py-1">
+              <div 
+                v-for="note in cat.notes" 
+                :key="note.date"
+                @click="selectedDate = new Date(note.date)"
+                class="text-sm py-1.5 px-2 rounded cursor-pointer hover:bg-indigo-50 transition-colors flex items-center gap-2 truncate"
+                :class="{'text-indigo-600 bg-indigo-50': formatDate(selectedDate) === note.date, 'text-gray-600': formatDate(selectedDate) !== note.date}"
+              >
+                <el-icon><Document /></el-icon> {{ note.title }}
+              </div>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
+        <div v-else class="text-center text-gray-400 text-sm mt-10">暂无分类数据</div>
+      </div>
     </div>
 
     <!-- 中间主编辑器区 -->
-    <div class="flex-1 flex flex-col relative bg-white">
-      <div class="h-14 border-b border-gray-100 flex items-center justify-between px-6">
+    <div class="flex-1 flex flex-col relative bg-white min-w-0">
+      <div class="h-14 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
         <div class="flex items-center gap-4">
           <h1 class="text-xl font-bold text-gray-800">{{ formatDate(selectedDate) }}</h1>
-          <span v-if="isSaving" class="text-xs text-gray-400">保存中...</span>
-          <span v-else class="text-xs text-gray-400">已保存</span>
+          
+          <el-select
+            v-model="category"
+            filterable
+            allow-create
+            default-first-option
+            :reserve-keyword="false"
+            placeholder="未分类"
+            size="small"
+            class="w-32"
+            @change="handleCategoryChange"
+          >
+            <el-option
+              v-for="cat in categoriesData"
+              :key="cat.name"
+              :label="cat.name"
+              :value="cat.name"
+            />
+          </el-select>
+          
+          <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>
+          <span v-else class="text-xs text-gray-400 transition-opacity">已保存</span>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 shrink-0">
           <el-button @click="showAIPanel = true" type="primary" plain size="small">
             <el-icon class="mr-1"><MagicStick /></el-icon> AI 创作
           </el-button>

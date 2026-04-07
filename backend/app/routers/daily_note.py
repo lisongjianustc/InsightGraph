@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class DailyNoteUpdate(BaseModel):
     content: str
+    category: Optional[str] = "未分类"
 
 class AIRewriteRequest(BaseModel):
     draft_content: str
@@ -34,12 +35,27 @@ def get_note_dates(db: Session = Depends(get_db)):
     notes = db.query(DailyNote.date).all()
     return {"dates": [note.date.isoformat() for note in notes]}
 
+@router.get("/categories")
+def get_note_categories(db: Session = Depends(get_db)):
+    """返回按分类分组的笔记列表"""
+    from sqlalchemy import desc
+    notes = db.query(DailyNote.date, DailyNote.category).order_by(desc(DailyNote.date)).all()
+    grouped = {}
+    for note in notes:
+        cat = note.category or "未分类"
+        if cat not in grouped:
+            grouped[cat] = []
+        grouped[cat].append({"date": note.date.isoformat(), "title": f"{note.date.isoformat()} 笔记"})
+    
+    result = [{"name": cat, "count": len(items), "notes": items} for cat, items in grouped.items()]
+    return {"categories": result}
+
 @router.get("/{note_date}")
 def get_daily_note(note_date: date, db: Session = Depends(get_db)):
     note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
     if not note:
-        return {"date": note_date, "content": ""}
-    return {"date": note.date, "content": note.content}
+        return {"date": note_date, "content": "", "category": "未分类"}
+    return {"date": note.date, "content": note.content, "category": note.category or "未分类"}
 
 async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
     try:
@@ -64,7 +80,7 @@ def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_task
     note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
     
     if not note:
-        note = DailyNote(date=note_date, content=payload.content)
+        note = DailyNote(date=note_date, content=payload.content, category=payload.category)
         db.add(note)
         db.commit()
         db.refresh(note)
@@ -77,6 +93,7 @@ def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_task
         background_tasks.add_task(build_graph_edges_for_node, db, node.id)
     else:
         note.content = payload.content
+        note.category = payload.category
         db.commit()
         # Update GraphNode
         node = db.query(GraphNode).filter(GraphNode.ref_id == str(note.id), GraphNode.node_type == 'daily_note').first()
