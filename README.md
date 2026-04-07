@@ -154,6 +154,17 @@ npm run dev
 ```
 打开浏览器访问 [http://localhost:5173](http://localhost:5173) 即可。
 
+### 5. 🛠️ AI 编排与自动化后台登录
+本项目深度集成了 AI 工作流编排系统（Dify）与自动化集成平台（n8n），您可以通过以下本地地址直接登录并进行二次开发配置：
+
+*   **🧠 Dify AI 大脑控制台**: 
+    *   **地址**: [http://localhost](http://localhost) (或 http://127.0.0.1)
+    *   **功能**: 在这里可视化创建大模型应用、管理 RAG 知识库、调试 Prompt，并获取 API Key 填入本项目的 `.env` 中。
+*   **⚙️ n8n 自动化工作流后台**: 
+    *   **地址**: [http://localhost:5678](http://localhost:5678)
+    *   **账号/密码**: `admin` / `insight_admin_123` (可在 `.env` 中修改)
+    *   **功能**: 通过拖拽节点实现自动抓取 RSS、监控 GitHub、定时向飞书/钉钉推送消息等自动化流水线。
+
 ---
 
 ## ⚙️ 系统维护与自定义
