@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 import feedparser
 import urllib.parse
 import httpx
+import asyncio
 from pydantic import BaseModel
 import logging
 
@@ -77,19 +78,44 @@ async def search_external(
         
         # 1. 增加强大的 User-Agent 并通过 httpx 获取数据
         headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 InsightGraph/1.0"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 InsightGraph/1.0"
         }
         
+        max_retries = 3
+        retry_delay = 2
+        xml_data = None
+        
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            resp = await client.get(url, headers=headers, timeout=15.0)
-            
-            # 2. 精准拦截 429 和 Rate exceeded
-            if resp.status_code == 429 or "Rate exceeded" in resp.text:
-                logger.error("arXiv API rate limit exceeded.")
-                raise HTTPException(status_code=429, detail="arXiv API 检索频率超限，请稍后重试或更换网络环境。")
-                
-            resp.raise_for_status()
-            xml_data = resp.text
+            for attempt in range(max_retries):
+                try:
+                    resp = await client.get(url, headers=headers, timeout=20.0)
+                    
+                    # 2. 精准拦截 429 和 Rate exceeded，并执行指数退避重试
+                    if resp.status_code == 429 or "Rate exceeded" in resp.text or resp.status_code == 403:
+                        if attempt < max_retries - 1:
+                            wait_time = retry_delay * (2 ** attempt)
+                            logger.warning(f"arXiv API rate limit exceeded (429/403). Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            logger.error("arXiv API rate limit exceeded after all retries.")
+                            raise HTTPException(status_code=429, detail="arXiv API 检索频率超限或您的 IP 被屏蔽。请稍后重试，或检查您的代理网络设置。")
+                            
+                    resp.raise_for_status()
+                    xml_data = resp.text
+                    break # 成功拿到数据，跳出循环
+                    
+                except httpx.RequestError as e:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)
+                        logger.warning(f"Network error: {str(e)}. Retrying in {wait_time}s... (Attempt {attempt+1}/{max_retries})")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    else:
+                        raise HTTPException(status_code=502, detail=f"请求 arXiv 失败，网络连接异常: {str(e)}")
+                        
+        if not xml_data:
+            raise HTTPException(status_code=500, detail="未能从 arXiv 获取任何文献数据。")
             
         # 3. 将拿到的安全 XML 交给 feedparser 解析
         feed = feedparser.parse(xml_data)
