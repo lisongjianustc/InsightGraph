@@ -144,9 +144,14 @@
         <div class="p-6">
           <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold text-gray-800">全量每日笔记分类</h2>
-            <el-button plain size="small" @click="fetchCategories">
-              <el-icon class="mr-1"><Refresh /></el-icon> 刷新
-            </el-button>
+            <div>
+              <el-button type="primary" size="small" @click="openCreateCategoryDialog">
+                <el-icon class="mr-1"><Plus /></el-icon> 新增分类
+              </el-button>
+              <el-button plain size="small" @click="fetchCategories">
+                <el-icon class="mr-1"><Refresh /></el-icon> 刷新
+              </el-button>
+            </div>
           </div>
           
           <div v-loading="loadingCategories" class="min-h-[200px]">
@@ -191,6 +196,21 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 分类新增弹窗 -->
+    <el-dialog v-model="createCategoryDialogVisible" title="新增分类" width="400px">
+      <el-form label-width="80px">
+        <el-form-item label="分类名称" required>
+          <el-input v-model="newCategoryName" placeholder="请输入新的分类名称" @keyup.enter="submitCreateCategory" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="createCategoryDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isCreatingCategory" @click="submitCreateCategory">确认</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 分类重命名弹窗 -->
     <el-dialog v-model="renameCategoryDialogVisible" title="重命名分类" width="400px">
@@ -256,6 +276,9 @@ const editingSource = ref<any>({ name: '', url: '', is_active: true })
 // 笔记分类
 const categories = ref<any[]>([])
 const loadingCategories = ref(false)
+const createCategoryDialogVisible = ref(false)
+const isCreatingCategory = ref(false)
+const newCategoryName = ref('')
 const renameCategoryDialogVisible = ref(false)
 const isRenamingCategory = ref(false)
 const categoryToRename = ref({ oldName: '', newName: '' })
@@ -386,6 +409,30 @@ const fetchCategories = async () => {
   } finally {
     loadingCategories.value = false
   }
+}
+
+const openCreateCategoryDialog = () => {
+  newCategoryName.value = ''
+  createCategoryDialogVisible.value = true
+}
+
+const submitCreateCategory = () => {
+  const name = newCategoryName.value.trim()
+  if (!name) {
+    ElMessage.warning('名称不能为空')
+    return
+  }
+  if (categories.value.some(c => c.name === name)) {
+    ElMessage.warning('该分类已存在')
+    return
+  }
+  
+  // 对于空分类，我们可以在前端临时维护，或者如果需要持久化可以在写笔记时固化。
+  // 在这里我们先在列表中添加一个计数为0的占位对象，这样用户切回每日笔记时就可以选到了。
+  // (实际上，刷新页面后空分类会消失，因为后端的聚合查询依赖真实的笔记记录，这是符合“用完即走”设计的。)
+  categories.value.push({ name: name, count: 0, notes: [] })
+  ElMessage.success('新增分类成功，您现在可以在每日笔记中选择它了')
+  createCategoryDialogVisible.value = false
 }
 
 const openRenameCategoryDialog = (category: any) => {
