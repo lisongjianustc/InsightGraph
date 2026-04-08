@@ -56,15 +56,15 @@ InsightGraph/
 
 ```mermaid
 graph TD
-    subgraph Frontend ["🖥️ 前端 (Electron / Vue 3)"]
-        UI_Capsule["⚡ 闪念胶囊 (Capsule)"]
-        UI_DailyNote["📅 每日笔记 (Daily Note)"]
-        UI_Feed["📰 文献库 (Feeds)"]
-        UI_Chat["🤖 全局问答 (Global Chat)"]
-        UI_Graph["🌌 知识图谱 (Knowledge Graph)"]
+    subgraph Frontend_Layer [前端 Electron / Vue 3]
+        UI_Capsule[闪念胶囊 Capsule]
+        UI_DailyNote[每日笔记 Daily Note]
+        UI_Feed[文献库 Feeds]
+        UI_Chat[全局问答 Global Chat]
+        UI_Graph[知识图谱 Knowledge Graph]
         
-        State["Pinia / Vue Ref 状态管理"]
-        Axios["Axios (HTTP) / Fetch (SSE)"]
+        State[Pinia / Vue Ref 状态管理]
+        Axios[Axios HTTP / Fetch SSE]
         
         UI_Capsule --> State
         UI_DailyNote --> State
@@ -74,37 +74,37 @@ graph TD
         State --> Axios
     end
 
-    subgraph Backend ["⚙️ 后端 (FastAPI)"]
-        API_Router["API 路由层 (Routers)"]
+    subgraph Backend_Layer [后端 FastAPI]
+        API_Router[API 路由层 Routers]
         
-        subgraph Services ["业务逻辑层 (Services)"]
-            Service_Graph["图谱构建器 (graph_builder.py)"]
-            Service_Dify["AI 编排服务 (dify_service.py)"]
-            Service_Search["外部检索引擎 (search.py)"]
+        subgraph Services_Layer [业务逻辑层 Services]
+            Service_Graph[图谱构建器 graph_builder]
+            Service_Dify[AI 编排服务 dify_service]
+            Service_Search[外部检索引擎 search]
         end
         
-        ORM["SQLAlchemy ORM"]
-        BG_Tasks["BackgroundTasks (异步任务队列)"]
+        ORM[SQLAlchemy ORM]
+        BG_Tasks[BackgroundTasks 异步任务队列]
         
-        API_Router --> Services
+        API_Router --> Services_Layer
         API_Router --> BG_Tasks
-        BG_Tasks -.->|"异步调用"| Service_Graph
+        BG_Tasks -.->|异步调用| Service_Graph
         Service_Graph --> Service_Dify
         Service_Search --> External_API
-        Services --> ORM
+        Services_Layer --> ORM
     end
 
-    subgraph Infrastructure ["💾 基础设施层"]
-        DB[("PostgreSQL 数据库")]
-        Dify["🧠 Dify AI 工作流编排平台"]
-        External_API["🌐 arXiv / n8n / 第三方 API"]
+    subgraph Infrastructure_Layer [基础设施层]
+        DB[(PostgreSQL 数据库)]
+        Dify[Dify AI 工作流编排平台]
+        External_API[arXiv / n8n / 第三方 API]
     end
 
-    Axios -->|"REST API"| API_Router
-    Axios -->|"SSE 流式传输"| API_Router
+    Axios -->|REST API| API_Router
+    Axios -->|SSE 流式传输| API_Router
     
     ORM <--> DB
-    Service_Dify <-->|"HTTP/REST"| Dify
+    Service_Dify <-->|HTTP_REST| Dify
 ```
 
 ---
@@ -124,16 +124,16 @@ sequenceDiagram
 
     User->>Frontend: 输入文本并点击保存
     Frontend->>Backend: POST /api/capsules
-    Backend->>DB: INSERT INTO capsules
-    Backend->>DB: INSERT INTO graph_nodes (type='capsule')
-    Backend-->>Frontend: 返回 200 OK (前端立即更新 UI)
+    Backend->>DB: 写入 capsules 表
+    Backend->>DB: 写入 graph_nodes 表
+    Backend-->>Frontend: 返回 200 OK 立即更新 UI
     
     Note over Backend: 触发 BackgroundTask 异步抽取
-    Backend->>Dify: 发送胶囊内容，要求提取核心实体 (Tags)
+    Backend->>Dify: 发送胶囊内容要求提取核心实体 Tags
     Dify-->>Backend: 返回 JSON 格式的 Tags 数组
     
     loop 遍历 Tags
-        Backend->>DB: 查询或创建 GraphNode (type='tag')
+        Backend->>DB: 查询或创建 GraphNode Tag
         Backend->>DB: 创建 GraphEdge 连接 Capsule 与 Tag
     end
 ```
@@ -148,35 +148,35 @@ sequenceDiagram
     participant Dify
     participant GraphDB
 
-    Editor->>Editor: 用户停止输入 > 1秒 (自动保存)
-    Editor->>Backend: PUT /api/daily-notes/{date}
+    Editor->>Editor: 用户停止输入大于 1 秒自动保存
+    Editor->>Backend: PUT /api/daily-notes/date
     Backend->>GraphDB: 更新 daily_note 节点内容
     
-    opt 如果当前是 "未分类" 且字数 > 50
+    opt 如果当前是未分类且字数大于 50
         Editor->>Backend: POST /api/daily-notes/auto-categorize
-        Backend->>GraphDB: 获取最近 5 篇笔记作为 Few-shot Examples
-        Backend->>Dify: 发送 Prompt (含历史分类习惯、全量 Tag、日记内容)
-        Dify-->>Backend: 返回 JSON {primary: "技术", suggestions: ["AI"], tags: ["RAG"]}
-        Backend-->>Editor: 自动更新分类下拉框，填充 Tags
-        Editor->>Backend: PUT /api/daily-notes/{date} (带上新 Tag)
-        Backend->>GraphDB: 删除旧连线，重新建立 DailyNote 与新 Tag 节点的 GraphEdge
+        Backend->>GraphDB: 获取最近 5 篇笔记作为 Few-shot 样本
+        Backend->>Dify: 发送 Prompt 包含历史习惯和日记内容
+        Dify-->>Backend: 返回 JSON 推荐分类和 Tags
+        Backend-->>Editor: 自动更新分类下拉框并填充 Tags
+        Editor->>Backend: 携带新 Tag 重新请求 PUT
+        Backend->>GraphDB: 删除旧连线重新建立 GraphEdge
     end
 ```
 
 - **AI 魔法重写 (AI Rewrite) 逻辑图**:
 ```mermaid
-flowchart LR
-    A["用户点击 AI 创作"] --> B{"解析草稿内容"}
-    B -->|"包含 [[original:123]]"| C["查询 feed_items 表的 full_text"]
-    B -->|"包含 [[capsule:456]]"| D["查询 capsules 表的 content"]
-    B -->|"纯文本"| E["直接使用选中文本"]
+graph LR
+    A[用户点击 AI 创作] --> B{解析草稿内容}
+    B -->|包含 original 双链| C[查询 feed_items 表的全文]
+    B -->|包含 capsule 双链| D[查询 capsules 表的内容]
+    B -->|纯文本| E[直接使用选中文本]
     
-    C --> F["组装结构化 Prompt"]
+    C --> F[组装结构化 Prompt]
     D --> F
     E --> F
     
-    F["将上下文包裹进 XML 标签发送至 Dify"] --> G["建立 SSE 连接"]
-    G -->|"流式返回"| H["前端打字机效果逐字渲染"]
+    F[包裹进 XML 发送至 Dify] --> G[建立 SSE 连接]
+    G -->|流式返回| H[前端打字机效果逐字渲染]
 ```
 
 ### 3.3 文献阅读库 (Feed/Reader & Search)
@@ -187,27 +187,27 @@ stateDiagram-v2
     [*] --> Request
     Request: 发起检索请求
     Request --> BuildURL
-    BuildURL: 构建安全URL (build_arxiv_query)
+    BuildURL: 构建安全URL
     BuildURL --> SendHTTPX
-    SendHTTPX: 发送HTTPX请求 (携带标准浏览器 User-Agent)
+    SendHTTPX: 发送HTTPX请求携带标准浏览器UA
     
     SendHTTPX --> CheckStatus
     CheckStatus: 检查 HTTP 状态码
     
-    CheckStatus --> Success: 200 OK
-    Success: 解析XML (feedparser)
+    CheckStatus --> Success: 200 OK 成功
+    Success: 解析XML
     Success --> [*]: 返回文献列表给前端
     
-    CheckStatus --> Blocked: 429 或 403 (被限流/拦截)
+    CheckStatus --> Blocked: 429 或 403 被限流或拦截
     Blocked --> CheckRetry
     CheckRetry: 检查重试次数
     
     CheckRetry --> Retry: 未超限
-    Retry: 指数退避 (休眠 2^n 秒)
+    Retry: 指数退避休眠重试
     Retry --> SendHTTPX
     
     CheckRetry --> Fail: 已超限
-    Fail: 抛出 HTTPException 429
+    Fail: 抛出 429 异常
     Fail --> [*]: 前端弹出红色警告框
 ```
 
@@ -216,20 +216,20 @@ stateDiagram-v2
 - **流式对话与溯源架构**:
 ```mermaid
 graph TD
-    A["用户提问"] -->|"fetch (SSE)"| B["FastAPI 后端"]
-    B -->|"透传请求"| C["Dify 工作流 (Knowledge Base Retrieval)"]
+    A[用户提问] -->|fetch SSE| B[FastAPI 后端]
+    B -->|透传请求| C[Dify 工作流知识库检索]
     
-    C -->|"chunk: text"| B
-    B -->|"SSE: message"| D["前端打字机渲染"]
+    C -->|返回文本块| B
+    B -->|推送 SSE 消息| D[前端打字机渲染]
     
-    C -->|"chunk: message_end"| B
-    B -->|"提取 retriever_resources"| E["解析溯源元数据"]
-    E -->|"SSE: citations"| D
-    D --> F["UI 底部渲染引用气泡"]
+    C -->|返回结束标识| B
+    B -->|提取检索资源| E[解析溯源元数据]
+    E -->|推送引用信息| D
+    D --> F[UI 底部渲染引用气泡]
     
-    G["用户点击中止"] --> H["AbortController.abort()"]
-    H --> I["物理掐断 fetch TCP 流"]
-    I --> J["前后端立刻停止资源消耗"]
+    G[用户点击中止] --> H[调用 AbortController 终止]
+    H --> I[物理掐断 TCP 流]
+    I --> J[前后端立刻停止资源消耗]
 ```
 
 ### 3.5 知识图谱星空 (Knowledge Graph)
@@ -237,25 +237,25 @@ graph TD
 - **图谱渲染与连通机制**:
 ```mermaid
 graph TD
-    subgraph DB_Core ["数据库核心 (graph_nodes & edges)"]
-        T1(("Tag: 大模型"))
-        T2(("Tag: 产品思考"))
+    subgraph DB_Core [数据库核心表]
+        T1((Tag 大模型))
+        T2((Tag 产品思考))
         
-        N1["Capsule: 灵感闪现"]
-        N2["DailyNote: 4月6日日记"]
-        N3["Feed: arXiv 论文"]
+        N1[Capsule 灵感闪现]
+        N2[DailyNote 日记]
+        N3[Feed 论文]
         
-        N1 -.->|"has_tag"| T1
-        N2 -.->|"has_tag"| T1
-        N2 -.->|"has_tag"| T2
-        N3 -.->|"has_tag"| T1
+        N1 -.->|has_tag| T1
+        N2 -.->|has_tag| T1
+        N2 -.->|has_tag| T2
+        N3 -.->|has_tag| T1
     end
 
-    subgraph Frontend_ECharts ["前端 ECharts 物理引擎"]
-        E["拉取全量 Nodes 和 Edges"] --> F["配置 repulsion: 200"]
-        F --> G["按 node_type 映射颜色/大小"]
-        G --> H["Force Layout 迭代计算引力与斥力"]
-        H --> I["渲染最终悬浮星空图"]
+    subgraph Frontend_ECharts [前端 ECharts 物理引擎]
+        E[拉取全量节点和连线] --> F[配置 repulsion 斥力]
+        F --> G[按类型映射颜色和大小]
+        G --> H[Force Layout 迭代计算引力与斥力]
+        H --> I[渲染最终悬浮星空图]
     end
     
     T1 ==> E
