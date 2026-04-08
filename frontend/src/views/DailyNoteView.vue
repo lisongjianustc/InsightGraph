@@ -19,6 +19,8 @@ const plugins = [gfm(), highlight()]
 const selectedDate = ref(new Date())
 const content = ref('')
 const category = ref('未分类')
+const noteTags = ref<string[]>([])
+const allGlobalTags = ref<string[]>([])
 const aiSuggestions = ref<string[]>([])
 const isSaving = ref(false)
 const isCategorizing = ref(false)
@@ -107,10 +109,21 @@ const handleNodeClick = (data: any) => {
 onMounted(() => {
   fetchDates()
   fetchCategories()
+  fetchAllTags()
   fetchNote(formatDate(selectedDate.value))
   fetchRecentCapsules()
   fetchRecentFeeds()
 })
+
+const fetchAllTags = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/graph/data`)
+    const tags = res.data.nodes.filter((n: any) => n.node_type === 'tag').map((n: any) => n.title)
+    allGlobalTags.value = [...new Set(tags)] as string[]
+  } catch (e) {
+    console.error('Failed to fetch global tags', e)
+  }
+}
 
 const formatDate = (date: Date) => {
   const d = new Date(date)
@@ -141,10 +154,12 @@ const fetchNote = async (dateStr: string) => {
     const res = await axios.get(`${API_BASE}/daily-notes/${dateStr}`)
     content.value = res.data.content || ''
     category.value = res.data.category || '未分类'
+    noteTags.value = res.data.tags || []
   } catch (e) {
     console.error('Failed to fetch note', e)
     content.value = ''
     category.value = '未分类'
+    noteTags.value = []
   }
 }
 
@@ -200,7 +215,8 @@ const saveNote = async () => {
   try {
     await axios.put(`${API_BASE}/daily-notes/${formatDate(selectedDate.value)}`, {
       content: content.value,
-      category: category.value
+      category: category.value,
+      tags: noteTags.value
     })
     if (!datesWithNotes.value.includes(formatDate(selectedDate.value)) && content.value.trim() !== '') {
       datesWithNotes.value.push(formatDate(selectedDate.value))
@@ -249,6 +265,14 @@ const autoCategorize = async () => {
 
 const handleCategoryChange = (val: string) => {
   category.value = val
+  triggerSave()
+}
+
+const handleTagsChange = () => {
+  triggerSave()
+}
+
+const triggerSave = () => {
   if (saveTimeout.value) clearTimeout(saveTimeout.value)
   saveTimeout.value = window.setTimeout(() => {
     saveNote()
@@ -452,53 +476,78 @@ const triggerAIRewrite = async () => {
 
     <!-- 中间主编辑器区 -->
     <div class="flex-1 flex flex-col relative bg-white min-w-0">
-      <div class="h-14 border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
-        <div class="flex items-center gap-4">
-          <h1 class="text-xl font-bold text-gray-800">{{ formatDate(selectedDate) }}</h1>
-          
+      <div class="h-auto min-h-14 py-2 border-b border-gray-100 flex flex-col justify-center px-6 shrink-0 gap-2">
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-gray-800">{{ formatDate(selectedDate) }}</h1>
+            
+            <el-select
+              v-model="category"
+              filterable
+              allow-create
+              default-first-option
+              :reserve-keyword="false"
+              placeholder="未分类"
+              size="small"
+              class="w-40"
+              @change="handleCategoryChange"
+            >
+              <el-option-group v-if="aiSuggestions.length > 0" label="✨ AI 推荐分类">
+                <el-option
+                  v-for="sugg in aiSuggestions"
+                  :key="'ai_' + sugg"
+                  :label="sugg"
+                  :value="sugg"
+                >
+                  <span class="flex items-center gap-2"><el-icon class="text-purple-500"><MagicStick /></el-icon>{{ sugg }}</span>
+                </el-option>
+              </el-option-group>
+              
+              <el-option-group label="📂 现有分类">
+                <el-option
+                  v-for="cat in categoriesData"
+                  :key="cat.name"
+                  :label="cat.name"
+                  :value="cat.name"
+                />
+              </el-option-group>
+            </el-select>
+            
+            <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>
+            <span v-else-if="isCategorizing" class="text-xs text-indigo-500 transition-opacity flex items-center gap-1"><el-icon class="is-loading"><Loading /></el-icon> AI 自动分类中...</span>
+            <span v-else class="text-xs text-gray-400 transition-opacity">已保存</span>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <el-button @click="showAIPanel = true" type="primary" plain size="small">
+              <el-icon class="mr-1"><MagicStick /></el-icon> AI 创作
+            </el-button>
+            <el-button @click="showReferences = !showReferences" size="small">
+              <el-icon class="mr-1"><SwitchButton /></el-icon> 素材库
+            </el-button>
+          </div>
+        </div>
+        
+        <!-- Tags Editor Row -->
+        <div class="flex items-center w-full">
           <el-select
-            v-model="category"
+            v-model="noteTags"
+            multiple
             filterable
             allow-create
             default-first-option
             :reserve-keyword="false"
-            placeholder="未分类"
+            placeholder="+ 添加图谱标签 (Tag)"
             size="small"
-            class="w-48"
-            @change="handleCategoryChange"
+            class="w-full custom-tag-select"
+            @change="handleTagsChange"
           >
-            <el-option-group v-if="aiSuggestions.length > 0" label="✨ AI 推荐分类">
-              <el-option
-                v-for="sugg in aiSuggestions"
-                :key="'ai_' + sugg"
-                :label="sugg"
-                :value="sugg"
-              >
-                <span class="flex items-center gap-2"><el-icon class="text-purple-500"><MagicStick /></el-icon>{{ sugg }}</span>
-              </el-option>
-            </el-option-group>
-            
-            <el-option-group label="📂 现有分类">
-              <el-option
-                v-for="cat in categoriesData"
-                :key="cat.name"
-                :label="cat.name"
-                :value="cat.name"
-              />
-            </el-option-group>
+            <el-option
+              v-for="item in allGlobalTags"
+              :key="item"
+              :label="item"
+              :value="item"
+            />
           </el-select>
-          
-          <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>
-          <span v-else-if="isCategorizing" class="text-xs text-indigo-500 transition-opacity flex items-center gap-1"><el-icon class="is-loading"><Loading /></el-icon> AI 自动分类中...</span>
-          <span v-else class="text-xs text-gray-400 transition-opacity">已保存</span>
-        </div>
-        <div class="flex gap-2 shrink-0">
-          <el-button @click="showAIPanel = true" type="primary" plain size="small">
-            <el-icon class="mr-1"><MagicStick /></el-icon> AI 创作
-          </el-button>
-          <el-button @click="showReferences = !showReferences" size="small">
-            <el-icon class="mr-1"><SwitchButton /></el-icon> 素材库
-          </el-button>
         </div>
       </div>
       
@@ -632,6 +681,12 @@ const triggerAIRewrite = async () => {
 }
 .custom-calendar :deep(.el-calendar__body) {
   padding: 0;
+}
+
+.custom-tag-select :deep(.el-select__tags) {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* Typora-like editor styling */

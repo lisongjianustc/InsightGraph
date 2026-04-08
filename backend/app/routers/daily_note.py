@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 class DailyNoteUpdate(BaseModel):
     content: str
     category: Optional[str] = "未分类"
+    tags: Optional[List[str]] = []
 
 class AIRewriteRequest(BaseModel):
     draft_content: str
@@ -133,8 +134,10 @@ async def auto_categorize(payload: AutoCategorizeRequest, db: Session = Depends(
 def get_daily_note(note_date: date, db: Session = Depends(get_db)):
     note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
     if not note:
-        return {"date": note_date, "content": "", "category": "未分类"}
-    return {"date": note.date, "content": note.content, "category": note.category or "未分类"}
+        return {"date": note_date, "content": "", "category": "未分类", "tags": []}
+    
+    tags_list = [t.strip() for t in note.tags.split(",")] if note.tags else []
+    return {"date": note.date, "content": note.content, "category": note.category or "未分类", "tags": tags_list}
 
 async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
     try:
@@ -157,9 +160,10 @@ async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
 @router.put("/{note_date}")
 def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
+    tags_str = ",".join(payload.tags) if payload.tags else ""
     
     if not note:
-        note = DailyNote(date=note_date, content=payload.content, category=payload.category)
+        note = DailyNote(date=note_date, content=payload.content, category=payload.category, tags=tags_str)
         db.add(note)
         db.commit()
         db.refresh(note)
@@ -169,17 +173,18 @@ def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_task
         db.add(node)
         db.commit()
         db.refresh(node)
-        background_tasks.add_task(build_graph_edges_for_node, db, node.id)
+        background_tasks.add_task(build_graph_edges_for_node, db, node.id, payload.tags)
     else:
         note.content = payload.content
         note.category = payload.category
+        note.tags = tags_str
         db.commit()
         # Update GraphNode
         node = db.query(GraphNode).filter(GraphNode.ref_id == str(note.id), GraphNode.node_type == 'daily_note').first()
         if node:
             node.content = payload.content
             db.commit()
-            background_tasks.add_task(build_graph_edges_for_node, db, node.id)
+            background_tasks.add_task(build_graph_edges_for_node, db, node.id, payload.tags)
             
     # Update Dify
     dify_client = DifyService()
