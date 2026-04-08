@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 import feedparser
 import urllib.parse
+import httpx
 from pydantic import BaseModel
 import logging
 
@@ -70,16 +71,34 @@ async def search_external(
         if not safe_query:
             return []
             
-        url = f"http://export.arxiv.org/api/query?search_query={safe_query}&start={start}&sortBy={sort_by}&sortOrder={sort_order}&max_results={max_results}"
+        url = f"https://export.arxiv.org/api/query?search_query={safe_query}&start={start}&sortBy={sort_by}&sortOrder={sort_order}&max_results={max_results}"
         
         logger.info(f"Searching arXiv: {url}")
-        feed = feedparser.parse(url)
+        
+        # 1. 增加强大的 User-Agent 并通过 httpx 获取数据
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 InsightGraph/1.0"
+        }
+        
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers, timeout=15.0)
+            
+            # 2. 精准拦截 429 和 Rate exceeded
+            if resp.status_code == 429 or "Rate exceeded" in resp.text:
+                logger.error("arXiv API rate limit exceeded.")
+                raise HTTPException(status_code=429, detail="arXiv API 检索频率超限，请稍后重试或更换网络环境。")
+                
+            resp.raise_for_status()
+            xml_data = resp.text
+            
+        # 3. 将拿到的安全 XML 交给 feedparser 解析
+        feed = feedparser.parse(xml_data)
         results = []
         
-        # 处理 feedparser 可能返回的错误 (比如 arXiv API 报错)
+        # 处理 feedparser 可能返回的错误
         if feed.bozo and hasattr(feed, 'bozo_exception'):
             logger.error(f"Feedparser bozo error: {feed.bozo_exception}")
-            return []
+            raise HTTPException(status_code=500, detail="解析 arXiv 文献数据失败，接口可能已发生变更。")
             
         # 查询已存在的项目进行去重和状态绑定
         existing_items = {item.url: item for item in db.query(FeedItem).filter(FeedItem.url.isnot(None)).all()}
@@ -113,9 +132,11 @@ async def search_external(
             })
             
         return results
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        logger.error(f"Search failed: {e}")
-        raise HTTPException(status_code=500, detail="Search failed")
+        logger.error(f"Search API Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"内部检索错误: {str(e)}")
 
 @router.post("/import")
 async def import_search_result(req: ImportRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):

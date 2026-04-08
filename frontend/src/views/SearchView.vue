@@ -594,9 +594,13 @@ const handleSearch = async () => {
     if (sortBy.value !== 'relevance' || sortOrder.value !== 'descending') {
       sortResults()
     }
-  } catch (error) {
-    ElMessage.error('检索失败，请检查网络或稍后重试')
-  } finally {
+  } catch (error: any) {
+      if (error.response && error.response.data && error.response.data.detail) {
+        ElMessage.error(error.response.data.detail)
+      } else {
+        ElMessage.error('检索失败，请检查网络或稍后重试')
+      }
+    } finally {
     isSearching.value = false
   }
 }
