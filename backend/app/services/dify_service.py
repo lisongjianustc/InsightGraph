@@ -424,6 +424,53 @@ class DifyService:
             logger.error(f"Failed to generate definition for {tag_name}: {e}")
             return "获取定义失败。"
 
+    async def auto_categorize_note(self, content: str, existing_categories: list[str]) -> str:
+        """
+        调用 Dify 模型对每日笔记进行自动分类
+        """
+        if not self.reader_api_key:
+            return "未分类"
+
+        endpoint = f"{self.api_url}/chat-messages"
+        headers = {
+            "Authorization": f"Bearer {self.reader_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        truncated_content = content[:5000] + "..." if len(content) > 5000 else content
+        cat_str = "、".join(existing_categories)
+        query = (
+            f"你是一个分类助手。请阅读以下日记内容，从我现有的分类列表中挑选一个最合适的分类。\n"
+            f"现有分类：[{cat_str}]\n\n"
+            f"如果现有分类都不合适，请为它生成一个精炼的 2-4 个字的新分类名。\n"
+            f"请只返回最终的分类名称本身（不需要引号，不要包含任何其他说明文字或标点符号）。\n\n"
+            f"日记内容：\n{truncated_content}"
+        )
+        
+        payload = {
+            "inputs": {},
+            "query": query,
+            "response_mode": "blocking",
+            "user": "insight_graph_system"
+        }
+        
+        try:
+            timeout_config = httpx.Timeout(60.0, connect=10.0)
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
+                response = await client.post(endpoint, json=payload, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                
+                cat_result = data.get("answer", "未分类").strip()
+                # 清理模型可能返回的无关符号
+                cat_result = cat_result.strip('\'"【】[]()<>*`').split('\n')[0].strip()
+                if not cat_result or len(cat_result) > 20:
+                    return "未分类"
+                return cat_result
+        except Exception as e:
+            logger.error(f"Failed to auto categorize note: {e}")
+            return "未分类"
+
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
         根据不同的分类获取对应的 Dataset ID。

@@ -135,7 +135,80 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <!-- 笔记分类管理 -->
+      <el-tab-pane label="笔记分类管理">
+        <template #label>
+          <span class="flex items-center gap-2"><el-icon><FolderOpened /></el-icon> 笔记分类</span>
+        </template>
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-gray-800">全量每日笔记分类</h2>
+            <el-button plain size="small" @click="fetchCategories">
+              <el-icon class="mr-1"><Refresh /></el-icon> 刷新
+            </el-button>
+          </div>
+          
+          <div v-loading="loadingCategories" class="min-h-[200px]">
+            <el-empty v-if="categories.length === 0 && !loadingCategories" description="暂无任何分类数据" />
+            <el-table v-else :data="categories" style="width: 100%" border stripe>
+              <el-table-column prop="name" label="分类名称" width="250">
+                <template #default="scope">
+                  <div class="flex items-center gap-2 font-medium">
+                    <el-icon class="text-yellow-500"><FolderOpened /></el-icon> {{ scope.row.name }}
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="count" label="关联笔记数量" width="150" align="center">
+                <template #default="scope">
+                  <el-tag type="info" size="small">{{ scope.row.count }} 篇</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" min-width="200">
+                <template #default="scope">
+                  <el-button 
+                    size="small" 
+                    type="primary" 
+                    plain 
+                    @click="openRenameCategoryDialog(scope.row)"
+                    :disabled="scope.row.name === '未分类'"
+                  >
+                    重命名
+                  </el-button>
+                  <el-button 
+                    size="small" 
+                    type="danger" 
+                    plain 
+                    @click="handleDeleteCategory(scope.row)"
+                    :disabled="scope.row.name === '未分类'"
+                  >
+                    删除分类 (重置为未分类)
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
+
+    <!-- 分类重命名弹窗 -->
+    <el-dialog v-model="renameCategoryDialogVisible" title="重命名分类" width="400px">
+      <el-form label-width="80px">
+        <el-form-item label="旧名称">
+          <el-input v-model="categoryToRename.oldName" disabled />
+        </el-form-item>
+        <el-form-item label="新名称" required>
+          <el-input v-model="categoryToRename.newName" placeholder="请输入新的分类名称" @keyup.enter="submitRenameCategory" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="renameCategoryDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="isRenamingCategory" @click="submitRenameCategory">确认</el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 添加/编辑源弹窗 -->
     <el-dialog v-model="sourceDialogVisible" :title="editingSource.id ? '编辑订阅源' : '添加订阅源'" width="500px">
@@ -163,7 +236,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useDark } from '@vueuse/core'
-import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus } from '@element-plus/icons-vue'
+import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
@@ -179,6 +252,13 @@ const sources = ref<any[]>([])
 const sourceDialogVisible = ref(false)
 const isSavingSource = ref(false)
 const editingSource = ref<any>({ name: '', url: '', is_active: true })
+
+// 笔记分类
+const categories = ref<any[]>([])
+const loadingCategories = ref(false)
+const renameCategoryDialogVisible = ref(false)
+const isRenamingCategory = ref(false)
+const categoryToRename = ref({ oldName: '', newName: '' })
 
 const fetchSources = async () => {
   loadingSources.value = true
@@ -294,8 +374,86 @@ const handleClose = (tag: any) => {
   }).catch(() => {})
 }
 
+// ===== 分类管理 =====
+const fetchCategories = async () => {
+  loadingCategories.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/daily-notes/categories`)
+    categories.value = res.data.categories || []
+  } catch (error) {
+    console.error('Fetch categories error', error)
+    ElMessage.error('获取分类列表失败')
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
+const openRenameCategoryDialog = (category: any) => {
+  categoryToRename.value = {
+    oldName: category.name,
+    newName: ''
+  }
+  renameCategoryDialogVisible.value = true
+}
+
+const submitRenameCategory = async () => {
+  const { oldName, newName } = categoryToRename.value
+  if (!newName.trim()) {
+    ElMessage.warning('新名称不能为空')
+    return
+  }
+  if (newName.trim() === oldName) {
+    ElMessage.warning('新名称不能与旧名称相同')
+    return
+  }
+  if (newName.trim() === '未分类') {
+    ElMessage.warning('不能重命名为"未分类"')
+    return
+  }
+  
+  isRenamingCategory.value = true
+  try {
+    const res = await axios.put(`${API_BASE}/daily-notes/categories/rename`, {
+      old_name: oldName,
+      new_name: newName.trim()
+    })
+    ElMessage.success(`重命名成功，影响了 ${res.data.count} 篇笔记`)
+    renameCategoryDialogVisible.value = false
+    fetchCategories()
+  } catch (error) {
+    console.error('Rename category error', error)
+    ElMessage.error('重命名失败')
+  } finally {
+    isRenamingCategory.value = false
+  }
+}
+
+const handleDeleteCategory = async (category: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除分类 "${category.name}" 吗？该分类下的所有笔记将被设为"未分类"，此操作不可撤销。`,
+      '删除警告',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    await axios.delete(`${API_BASE}/daily-notes/categories/${encodeURIComponent(category.name)}`)
+    ElMessage.success('分类已删除')
+    fetchCategories()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('Delete category error', error)
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
 onMounted(() => {
   fetchTags()
   fetchSources()
+  fetchCategories()
 })
 </script>

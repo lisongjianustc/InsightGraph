@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document, Loading } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
@@ -20,6 +20,7 @@ const selectedDate = ref(new Date())
 const content = ref('')
 const category = ref('未分类')
 const isSaving = ref(false)
+const isCategorizing = ref(false)
 const saveTimeout = ref<number | null>(null)
 const datesWithNotes = ref<string[]>([])
 const viewMode = ref('calendar') // 'calendar' | 'category'
@@ -146,10 +147,40 @@ const saveNote = async () => {
     }
     // Refresh categories in background to keep counts/names updated
     fetchCategories()
+    
+    // Auto categorize if applicable
+    if (category.value === '未分类' && content.value.length > 50 && !isCategorizing.value) {
+      autoCategorize()
+    }
   } catch (e) {
     console.error('Failed to save note', e)
   } finally {
     isSaving.value = false
+  }
+}
+
+const autoCategorize = async () => {
+  isCategorizing.value = true
+  try {
+    const existingCategories = categoriesData.value.map(c => c.name).filter(n => n !== '未分类')
+    const res = await axios.post(`${API_BASE}/daily-notes/auto-categorize`, {
+      content: content.value,
+      existing_categories: existingCategories
+    })
+    if (res.data.category && res.data.category !== '未分类') {
+      category.value = res.data.category
+      // Save again with new category
+      await axios.put(`${API_BASE}/daily-notes/${formatDate(selectedDate.value)}`, {
+        content: content.value,
+        category: category.value
+      })
+      fetchCategories()
+      ElMessage.success(`AI 已将此笔记自动归类为：${category.value}`)
+    }
+  } catch (e) {
+    console.error('Auto categorization failed', e)
+  } finally {
+    isCategorizing.value = false
   }
 }
 
@@ -381,6 +412,7 @@ const triggerAIRewrite = async () => {
           </el-select>
           
           <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>
+          <span v-else-if="isCategorizing" class="text-xs text-indigo-500 transition-opacity flex items-center gap-1"><el-icon class="is-loading"><Loading /></el-icon> AI 自动分类中...</span>
           <span v-else class="text-xs text-gray-400 transition-opacity">已保存</span>
         </div>
         <div class="flex gap-2 shrink-0">

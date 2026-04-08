@@ -29,6 +29,14 @@ class AIRewriteRequest(BaseModel):
     reference_original_ids: List[int]
     format_type: str # 'card', 'blog', 'polish'
 
+class CategoryRenameRequest(BaseModel):
+    old_name: str
+    new_name: str
+
+class AutoCategorizeRequest(BaseModel):
+    content: str
+    existing_categories: List[str]
+
 @router.get("/dates")
 def get_note_dates(db: Session = Depends(get_db)):
     """返回所有存在笔记的日期列表"""
@@ -49,6 +57,37 @@ def get_note_categories(db: Session = Depends(get_db)):
     
     result = [{"name": cat, "count": len(items), "notes": items} for cat, items in grouped.items()]
     return {"categories": result}
+
+@router.put("/categories/rename")
+def rename_category(payload: CategoryRenameRequest, db: Session = Depends(get_db)):
+    """重命名一个笔记分类"""
+    if not payload.old_name or not payload.new_name:
+        raise HTTPException(status_code=400, detail="名称不能为空")
+        
+    notes = db.query(DailyNote).filter(DailyNote.category == payload.old_name).all()
+    for note in notes:
+        note.category = payload.new_name
+    db.commit()
+    return {"message": "success", "count": len(notes)}
+
+@router.delete("/categories/{category_name}")
+def delete_category(category_name: str, db: Session = Depends(get_db)):
+    """删除一个分类（将该分类下的笔记设为未分类）"""
+    notes = db.query(DailyNote).filter(DailyNote.category == category_name).all()
+    for note in notes:
+        note.category = "未分类"
+    db.commit()
+    return {"message": "success", "count": len(notes)}
+
+@router.post("/auto-categorize")
+async def auto_categorize(payload: AutoCategorizeRequest):
+    """自动给笔记分类"""
+    if not payload.content or len(payload.content) < 50:
+        return {"category": "未分类"}
+        
+    dify_client = DifyService()
+    category = await dify_client.auto_categorize_note(payload.content, payload.existing_categories)
+    return {"category": category}
 
 @router.get("/{note_date}")
 def get_daily_note(note_date: date, db: Session = Depends(get_db)):
