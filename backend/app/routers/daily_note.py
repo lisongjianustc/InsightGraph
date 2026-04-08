@@ -33,6 +33,9 @@ class CategoryRenameRequest(BaseModel):
     old_name: str
     new_name: str
 
+class CategoryUpdateRequest(BaseModel):
+    category: str
+
 class AutoCategorizeRequest(BaseModel):
     content: str
     existing_categories: List[str]
@@ -79,15 +82,30 @@ def delete_category(category_name: str, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "success", "count": len(notes)}
 
+@router.patch("/{note_date}/category")
+def update_note_category(note_date: date, payload: CategoryUpdateRequest, db: Session = Depends(get_db)):
+    """仅更新每日笔记的分类（用于拖拽等场景）"""
+    note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="找不到该日期的笔记")
+    note.category = payload.category
+    db.commit()
+    return {"message": "success", "category": note.category}
+
 @router.post("/auto-categorize")
-async def auto_categorize(payload: AutoCategorizeRequest):
-    """自动给笔记分类"""
+async def auto_categorize(payload: AutoCategorizeRequest, db: Session = Depends(get_db)):
+    """自动给笔记分类并提供建议"""
     if not payload.content or len(payload.content) < 50:
-        return {"category": "未分类"}
+        return {"primary": "未分类", "suggestions": []}
+        
+    # 获取最近 5 篇已分类的笔记作为 Few-shot Examples
+    from sqlalchemy import desc
+    recent_notes = db.query(DailyNote).filter(DailyNote.category != "未分类").order_by(desc(DailyNote.created_at)).limit(5).all()
+    few_shot_examples = [{"content": n.content[:200], "category": n.category} for n in recent_notes]
         
     dify_client = DifyService()
-    category = await dify_client.auto_categorize_note(payload.content, payload.existing_categories)
-    return {"category": category}
+    result = await dify_client.auto_categorize_note(payload.content, payload.existing_categories, few_shot_examples)
+    return result
 
 @router.get("/{note_date}")
 def get_daily_note(note_date: date, db: Session = Depends(get_db)):

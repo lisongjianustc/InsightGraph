@@ -19,6 +19,7 @@ const plugins = [gfm(), highlight()]
 const selectedDate = ref(new Date())
 const content = ref('')
 const category = ref('未分类')
+const aiSuggestions = ref<string[]>([])
 const isSaving = ref(false)
 const isCategorizing = ref(false)
 const saveTimeout = ref<number | null>(null)
@@ -43,6 +44,65 @@ const selectedOriginalIds = ref<number[]>([])
 const showAIPanel = ref(false)
 const aiGenerating = ref(false)
 const aiFormat = ref('polish')
+
+// Tree computing and Dnd
+const treeData = computed(() => {
+  return categoriesData.value.map(cat => ({
+    id: `cat_${cat.name}`,
+    label: `${cat.name} (${cat.count})`,
+    type: 'category',
+    name: cat.name,
+    children: cat.notes.map((note: any) => ({
+      id: `note_${note.date}`,
+      label: note.title,
+      type: 'note',
+      date: note.date
+    }))
+  }))
+})
+
+const allowDrag = (node: any) => {
+  return node.data.type === 'note'
+}
+
+const allowDrop = (draggingNode: any, dropNode: any, type: string) => {
+  if (draggingNode.data.type !== 'note') return false
+  if (dropNode.data.type === 'category' && type === 'inner') return true
+  if (dropNode.data.type === 'note' && (type === 'prev' || type === 'next')) return true
+  return false
+}
+
+const handleDrop = async (draggingNode: any, dropNode: any, dropType: string, _ev: any) => {
+  const noteDate = draggingNode.data.date
+  let targetCategory = '未分类'
+  
+  if (dropType === 'inner') {
+    targetCategory = dropNode.data.name
+  } else {
+    targetCategory = dropNode.parent.data?.name || '未分类'
+  }
+  
+  try {
+    await axios.patch(`${API_BASE}/daily-notes/${noteDate}/category`, {
+      category: targetCategory
+    })
+    ElMessage.success(`已移动至 [${targetCategory}]`)
+    if (formatDate(selectedDate.value) === noteDate) {
+       category.value = targetCategory
+    }
+    fetchCategories()
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('移动失败')
+    fetchCategories() // revert tree
+  }
+}
+
+const handleNodeClick = (data: any) => {
+  if (data.type === 'note') {
+    selectedDate.value = new Date(data.date)
+  }
+}
 
 onMounted(() => {
   fetchDates()
@@ -167,15 +227,18 @@ const autoCategorize = async () => {
       content: content.value,
       existing_categories: existingCategories
     })
-    if (res.data.category && res.data.category !== '未分类') {
-      category.value = res.data.category
+    
+    if (res.data.primary && res.data.primary !== '未分类') {
+      category.value = res.data.primary
+      aiSuggestions.value = res.data.suggestions || []
+      
       // Save again with new category
       await axios.put(`${API_BASE}/daily-notes/${formatDate(selectedDate.value)}`, {
         content: content.value,
         category: category.value
       })
       fetchCategories()
-      ElMessage.success(`AI 已将此笔记自动归类为：${category.value}`)
+      ElMessage.success(`AI 自动分类为：${category.value}`)
     }
   } catch (e) {
     console.error('Auto categorization failed', e)
@@ -361,27 +424,28 @@ const triggerAIRewrite = async () => {
 
       <!-- 分类视图 -->
       <div v-show="viewMode === 'category'" class="flex-1 overflow-y-auto p-2">
-        <el-collapse accordion v-if="categoriesData.length > 0">
-          <el-collapse-item v-for="cat in categoriesData" :key="cat.name" :name="cat.name">
-            <template #title>
-              <div class="flex justify-between items-center w-full pr-2 font-medium text-gray-700">
-                <div class="flex items-center gap-2 truncate"><el-icon><FolderOpened /></el-icon> {{ cat.name }}</div>
-                <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{{ cat.count }}</span>
-              </div>
-            </template>
-            <div class="flex flex-col gap-1 pl-6 pr-2 py-1">
-              <div 
-                v-for="note in cat.notes" 
-                :key="note.date"
-                @click="selectedDate = new Date(note.date)"
-                class="text-sm py-1.5 px-2 rounded cursor-pointer hover:bg-indigo-50 transition-colors flex items-center gap-2 truncate"
-                :class="{'text-indigo-600 bg-indigo-50': formatDate(selectedDate) === note.date, 'text-gray-600': formatDate(selectedDate) !== note.date}"
-              >
-                <el-icon><Document /></el-icon> {{ note.title }}
-              </div>
+        <el-tree
+          v-if="treeData.length > 0"
+          :data="treeData"
+          draggable
+          :allow-drop="allowDrop"
+          :allow-drag="allowDrag"
+          @node-drop="handleDrop"
+          @node-click="handleNodeClick"
+          node-key="id"
+          default-expand-all
+          :expand-on-click-node="false"
+          class="bg-transparent"
+        >
+          <template #default="{ node, data }">
+            <div class="flex items-center gap-2 w-full pr-2 text-sm transition-colors py-1" 
+                 :class="{'text-indigo-600 font-bold bg-indigo-50 px-2 rounded': data.type === 'note' && formatDate(selectedDate) === data.date}">
+              <el-icon v-if="data.type === 'category'" class="text-yellow-500"><FolderOpened /></el-icon>
+              <el-icon v-else class="text-gray-400"><Document /></el-icon>
+              <span class="truncate flex-1" :class="{'font-medium text-gray-700': data.type === 'category'}">{{ node.label }}</span>
             </div>
-          </el-collapse-item>
-        </el-collapse>
+          </template>
+        </el-tree>
         <div v-else class="text-center text-gray-400 text-sm mt-10">暂无分类数据</div>
       </div>
     </div>
@@ -400,15 +464,28 @@ const triggerAIRewrite = async () => {
             :reserve-keyword="false"
             placeholder="未分类"
             size="small"
-            class="w-32"
+            class="w-48"
             @change="handleCategoryChange"
           >
-            <el-option
-              v-for="cat in categoriesData"
-              :key="cat.name"
-              :label="cat.name"
-              :value="cat.name"
-            />
+            <el-option-group v-if="aiSuggestions.length > 0" label="✨ AI 推荐分类">
+              <el-option
+                v-for="sugg in aiSuggestions"
+                :key="'ai_' + sugg"
+                :label="sugg"
+                :value="sugg"
+              >
+                <span class="flex items-center gap-2"><el-icon class="text-purple-500"><MagicStick /></el-icon>{{ sugg }}</span>
+              </el-option>
+            </el-option-group>
+            
+            <el-option-group label="📂 现有分类">
+              <el-option
+                v-for="cat in categoriesData"
+                :key="cat.name"
+                :label="cat.name"
+                :value="cat.name"
+              />
+            </el-option-group>
           </el-select>
           
           <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>

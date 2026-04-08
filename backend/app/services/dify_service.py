@@ -1,6 +1,8 @@
 import os
 import httpx
 import logging
+import json
+import re
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -424,12 +426,12 @@ class DifyService:
             logger.error(f"Failed to generate definition for {tag_name}: {e}")
             return "获取定义失败。"
 
-    async def auto_categorize_note(self, content: str, existing_categories: list[str]) -> str:
+    async def auto_categorize_note(self, content: str, existing_categories: list[str], few_shot_examples: list[dict] = None) -> dict:
         """
-        调用 Dify 模型对每日笔记进行自动分类
+        调用 Dify 模型对每日笔记进行自动分类，返回 primary 和 suggestions
         """
         if not self.reader_api_key:
-            return "未分类"
+            return {"primary": "未分类", "suggestions": []}
 
         endpoint = f"{self.api_url}/chat-messages"
         headers = {
@@ -439,11 +441,23 @@ class DifyService:
         
         truncated_content = content[:5000] + "..." if len(content) > 5000 else content
         cat_str = "、".join(existing_categories)
+        
+        examples_prompt = ""
+        if few_shot_examples:
+            examples_prompt = "以下是你过去曾经处理过的真实分类记录，请仔细学习其分类风格和颗粒度：\n"
+            for ex in few_shot_examples:
+                examples_prompt += f"- 笔记片段：{ex['content']} -> 你当时将其归类为了：【{ex['category']}】\n"
+            examples_prompt += "\n现在，请模仿上述思维逻辑，为以下新笔记进行分类。\n\n"
+            
         query = (
-            f"你是一个分类助手。请阅读以下日记内容，从我现有的分类列表中挑选一个最合适的分类。\n"
+            f"你是一个极具个性化的智能分类助手。请阅读以下日记内容，从我现有的分类列表中挑选最合适的分类。\n"
             f"现有分类：[{cat_str}]\n\n"
-            f"如果现有分类都不合适，请为它生成一个精炼的 2-4 个字的新分类名。\n"
-            f"请只返回最终的分类名称本身（不需要引号，不要包含任何其他说明文字或标点符号）。\n\n"
+            f"{examples_prompt}"
+            f"要求：\n"
+            f"1. 如果现有分类都不合适，请为它生成一个精炼的 2-4 个字的新分类名。\n"
+            f"2. 除了最推荐的分类外，请额外提供 1-2 个备选分类建议（即使生成新分类，也可以提供现有分类作为备选）。\n"
+            f"3. 请必须以严格的 JSON 格式输出，不要包含任何其他说明文字。格式如下：\n"
+            f'{{"primary": "最推荐的分类", "suggestions": ["备选分类1", "备选分类2"]}}\n\n'
             f"日记内容：\n{truncated_content}"
         )
         
@@ -461,15 +475,26 @@ class DifyService:
                 response.raise_for_status()
                 data = response.json()
                 
-                cat_result = data.get("answer", "未分类").strip()
-                # 清理模型可能返回的无关符号
-                cat_result = cat_result.strip('\'"【】[]()<>*`').split('\n')[0].strip()
-                if not cat_result or len(cat_result) > 20:
-                    return "未分类"
-                return cat_result
+                cat_result = data.get("answer", "").strip()
+                
+                # 清理模型可能返回的 Markdown code block
+                cat_result = re.sub(r'^```json\s*', '', cat_result)
+                cat_result = re.sub(r'```\s*$', '', cat_result).strip()
+                
+                try:
+                    parsed = json.loads(cat_result)
+                    primary = parsed.get("primary", "未分类").strip()
+                    suggestions = parsed.get("suggestions", [])
+                    return {"primary": primary, "suggestions": suggestions}
+                except json.JSONDecodeError:
+                    # 如果模型没有严格返回 JSON，退回简单的文本截取
+                    primary = cat_result.strip('\'"【】[]()<>*`').split('\n')[0].strip()
+                    if len(primary) > 20: primary = "未分类"
+                    return {"primary": primary, "suggestions": []}
+                    
         except Exception as e:
             logger.error(f"Failed to auto categorize note: {e}")
-            return "未分类"
+            return {"primary": "未分类", "suggestions": []}
 
     def _get_dataset_id(self, kb_type: str = "default") -> str:
         """
