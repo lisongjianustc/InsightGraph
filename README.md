@@ -1,8 +1,8 @@
 <div align="center">
   <img src="frontend/build/icon.png" width="160" height="160" alt="InsightGraph Logo" style="border-radius: 22.5%; box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 20px;">
-  
+
   <h1>🌌 InsightGraph</h1>
-  
+
   <p><b>一个高度智能化、自动化的个人第二大脑系统</b></p>
 
   <p>
