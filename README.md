@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="frontend/build/icon.png" width="160" height="160" alt="InsightGraph Logo" style="border-radius: 22.5%; box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 20px;">
+  <img src="doc/images/icon.png" width="160" height="160" alt="InsightGraph Logo" style="border-radius: 22.5%; box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 20px;">
 
   <h1>🌌 InsightGraph</h1>
 
