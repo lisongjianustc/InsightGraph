@@ -88,3 +88,7 @@ Project_Documentation.md
 release_v1.0.2.md
 fix_docs.py
 fix_mermaid2.py
+AI_Training_Guide.md
+RELEASE_NOTES.md
+doc/*.md
+docs/**/*.md
