@@ -82,3 +82,9 @@ frontend/raw_icon.png
 *.swp
 *.swo
 dify-source/
+Implementation_Plan_v2.0.md
+Roadmap_v2.0.md
+Project_Documentation.md
+release_v1.0.2.md
+fix_docs.py
+fix_mermaid2.py
