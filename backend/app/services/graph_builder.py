@@ -37,12 +37,18 @@ async def build_graph_edges_for_node(db: Session, node_id: int, manual_tags: lis
         kw = kw.strip()
         if not kw: continue
         # 查找是否已经有该 keyword 的 tag 节点
-        tag_node = db.query(GraphNode).filter(GraphNode.node_type == "tag", GraphNode.title == kw).first()
+        tag_node = db.query(GraphNode).filter(
+            GraphNode.node_type == "tag", 
+            GraphNode.title == kw,
+            GraphNode.owner_id == node.owner_id
+        ).first()
         if not tag_node:
             tag_node = GraphNode(
                 node_type="tag",
                 title=kw,
-                content=f"Tag: {kw}"
+                content=f"Tag: {kw}",
+                owner_id=node.owner_id,
+                visibility=node.visibility
             )
             db.add(tag_node)
             db.commit()
@@ -58,7 +64,9 @@ async def build_graph_edges_for_node(db: Session, node_id: int, manual_tags: lis
             edge = GraphEdge(
                 source_node_id=node.id,
                 target_node_id=tag_node.id,
-                relation_type="has_tag"
+                relation_type="has_tag",
+                owner_id=node.owner_id,
+                visibility=node.visibility
             )
             db.add(edge)
             

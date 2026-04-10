@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.core.database import get_db
 from app.models.graph import GraphNode, GraphEdge
+from app.models.user import User
+from app.api.deps import get_current_active_user
 from app.services.graph_builder import build_graph_edges_for_node
 from app.models.feed import FeedItem
 from app.models.capsule import Capsule
@@ -9,10 +12,18 @@ from app.models.capsule import Capsule
 router = APIRouter(prefix="/api/graph", tags=["graph"])
 
 @router.get("/data")
-async def get_graph_data(db: Session = Depends(get_db)):
-    """获取图谱数据用于可视化"""
-    nodes = db.query(GraphNode).all()
-    edges = db.query(GraphEdge).all()
+async def get_graph_data(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    """获取图谱数据用于可视化（仅包含用户的私有数据及所有公开数据）"""
+    nodes = db.query(GraphNode).filter(
+        or_(GraphNode.visibility == 'public', GraphNode.owner_id == current_user.id)
+    ).all()
+    
+    node_ids = [n.id for n in nodes]
+    
+    edges = db.query(GraphEdge).filter(
+        GraphEdge.source_node_id.in_(node_ids),
+        GraphEdge.target_node_id.in_(node_ids)
+    ).all()
     
     # 提取 original 类型的关联文献 URL 和 capsule 类型的 file_url
     feeds = db.query(FeedItem.id, FeedItem.url).all()
@@ -52,9 +63,13 @@ async def get_graph_data(db: Session = Depends(get_db)):
     }
 
 @router.get("/tag/{tag_id}/definition")
-async def get_tag_definition(tag_id: int, force: bool = False, db: Session = Depends(get_db)):
+async def get_tag_definition(tag_id: int, force: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """获取或动态生成标签的专业定义"""
-    node = db.query(GraphNode).filter(GraphNode.id == tag_id, GraphNode.node_type == 'tag').first()
+    node = db.query(GraphNode).filter(
+        GraphNode.id == tag_id, 
+        GraphNode.node_type == 'tag',
+        or_(GraphNode.visibility == 'public', GraphNode.owner_id == current_user.id)
+    ).first()
     if not node:
         raise HTTPException(status_code=404, detail="Tag not found")
         
@@ -68,9 +83,12 @@ async def get_tag_definition(tag_id: int, force: bool = False, db: Session = Dep
     return {"definition": node.content}
         
 @router.post("/build")
-async def build_all_graph_edges(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def build_all_graph_edges(background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """为没有边的实体节点建立关键词关联 (仅为已有数据补全)"""
-    nodes = db.query(GraphNode).filter(GraphNode.node_type.in_(["capsule", "deep", "original", "skim"])).all()
+    nodes = db.query(GraphNode).filter(
+        GraphNode.node_type.in_(["capsule", "deep", "original", "skim"]),
+        GraphNode.owner_id == current_user.id
+    ).all()
     for node in nodes:
         # 检查是否已经有连出去的边
         edge_count = db.query(GraphEdge).filter(GraphEdge.source_node_id == node.id).count()

@@ -11,6 +11,8 @@ from app.core.database import get_db
 from app.models.daily_note import DailyNote
 from app.models.capsule import Capsule
 from app.models.graph import GraphNode, GraphEdge
+from app.models.user import User
+from app.api.deps import get_current_active_user
 from app.services.graph_builder import build_graph_edges_for_node
 from app.services.dify_service import DifyService
 import os
@@ -45,16 +47,16 @@ class AutoCategorizeRequest(BaseModel):
     existing_categories: List[str]
 
 @router.get("/dates")
-def get_note_dates(db: Session = Depends(get_db)):
+def get_note_dates(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """返回所有存在笔记的日期列表"""
-    notes = db.query(DailyNote.date).all()
+    notes = db.query(DailyNote.date).filter(DailyNote.owner_id == current_user.id).all()
     return {"dates": [note.date.isoformat() for note in notes]}
 
 @router.get("/categories")
-def get_note_categories(db: Session = Depends(get_db)):
+def get_note_categories(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """返回按分类分组的笔记列表"""
     from sqlalchemy import desc
-    notes = db.query(DailyNote.date, DailyNote.category).order_by(desc(DailyNote.date)).all()
+    notes = db.query(DailyNote.date, DailyNote.category).filter(DailyNote.owner_id == current_user.id).order_by(desc(DailyNote.date)).all()
     grouped = {}
     for note in notes:
         cat = note.category or "未分类"
@@ -85,30 +87,39 @@ def create_category(payload: CategoryCreateRequest, db: Session = Depends(get_db
     return {"message": "由于当前架构分类是动态聚合的，您可以直接在写日记时输入新分类名。或者通过此接口在前端临时注册。"}
 
 @router.put("/categories/rename")
-def rename_category(payload: CategoryRenameRequest, db: Session = Depends(get_db)):
+def rename_category(payload: CategoryRenameRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """重命名一个笔记分类"""
     if not payload.old_name or not payload.new_name:
         raise HTTPException(status_code=400, detail="名称不能为空")
         
-    notes = db.query(DailyNote).filter(DailyNote.category == payload.old_name).all()
+    notes = db.query(DailyNote).filter(
+        DailyNote.category == payload.old_name,
+        DailyNote.owner_id == current_user.id
+    ).all()
     for note in notes:
         note.category = payload.new_name
     db.commit()
     return {"message": "success", "count": len(notes)}
 
 @router.delete("/categories/{category_name}")
-def delete_category(category_name: str, db: Session = Depends(get_db)):
-    """删除一个分类（将该分类下的笔记设为未分类）"""
-    notes = db.query(DailyNote).filter(DailyNote.category == category_name).all()
+def delete_category(category_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    """删除一个分类（将该分类下的笔记设为'未分类'）"""
+    notes = db.query(DailyNote).filter(
+        DailyNote.category == category_name,
+        DailyNote.owner_id == current_user.id
+    ).all()
     for note in notes:
         note.category = "未分类"
     db.commit()
     return {"message": "success", "count": len(notes)}
 
 @router.patch("/{note_date}/category")
-def update_note_category(note_date: date, payload: CategoryUpdateRequest, db: Session = Depends(get_db)):
-    """仅更新每日笔记的分类（用于拖拽等场景）"""
-    note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
+def update_note_category(note_date: date, payload: CategoryUpdateRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    """单独更新某篇笔记的分类"""
+    note = db.query(DailyNote).filter(
+        DailyNote.date == note_date,
+        DailyNote.owner_id == current_user.id
+    ).first()
     if not note:
         raise HTTPException(status_code=404, detail="找不到该日期的笔记")
     note.category = payload.category
@@ -116,14 +127,17 @@ def update_note_category(note_date: date, payload: CategoryUpdateRequest, db: Se
     return {"message": "success", "category": note.category}
 
 @router.post("/auto-categorize")
-async def auto_categorize(payload: AutoCategorizeRequest, db: Session = Depends(get_db)):
+async def auto_categorize(payload: AutoCategorizeRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """自动给笔记分类并提供建议"""
     if not payload.content or len(payload.content) < 50:
         return {"primary": "未分类", "suggestions": []}
         
     # 获取最近 5 篇已分类的笔记作为 Few-shot Examples
     from sqlalchemy import desc
-    recent_notes = db.query(DailyNote).filter(DailyNote.category != "未分类").order_by(desc(DailyNote.created_at)).limit(5).all()
+    recent_notes = db.query(DailyNote).filter(
+        DailyNote.category != "未分类",
+        DailyNote.owner_id == current_user.id
+    ).order_by(desc(DailyNote.created_at)).limit(5).all()
     few_shot_examples = [{"content": n.content[:200], "category": n.category} for n in recent_notes]
         
     dify_client = DifyService()
@@ -131,8 +145,11 @@ async def auto_categorize(payload: AutoCategorizeRequest, db: Session = Depends(
     return result
 
 @router.get("/{note_date}")
-def get_daily_note(note_date: date, db: Session = Depends(get_db)):
-    note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
+def get_daily_note(note_date: date, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    note = db.query(DailyNote).filter(
+        DailyNote.date == note_date,
+        DailyNote.owner_id == current_user.id
+    ).first()
     if not note:
         return {"date": note_date, "content": "", "category": "未分类", "tags": []}
     
@@ -158,18 +175,21 @@ async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
         logger.error(f"Failed to update Dify doc for daily note: {e}")
 
 @router.put("/{note_date}")
-def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    note = db.query(DailyNote).filter(DailyNote.date == note_date).first()
+def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    note = db.query(DailyNote).filter(
+        DailyNote.date == note_date,
+        DailyNote.owner_id == current_user.id
+    ).first()
     tags_str = ",".join(payload.tags) if payload.tags else ""
     
     if not note:
-        note = DailyNote(date=note_date, content=payload.content, category=payload.category, tags=tags_str)
+        note = DailyNote(date=note_date, content=payload.content, category=payload.category, tags=tags_str, owner_id=current_user.id)
         db.add(note)
         db.commit()
         db.refresh(note)
         # Create GraphNode
         title = f"{note_date.strftime('%Y-%m-%d')} 每日笔记"
-        node = GraphNode(node_type='daily_note', title=title, content=payload.content, ref_id=note.id)
+        node = GraphNode(node_type='daily_note', title=title, content=payload.content, ref_id=note.id, owner_id=current_user.id)
         db.add(node)
         db.commit()
         db.refresh(node)
@@ -180,7 +200,7 @@ def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_task
         note.tags = tags_str
         db.commit()
         # Update GraphNode
-        node = db.query(GraphNode).filter(GraphNode.ref_id == str(note.id), GraphNode.node_type == 'daily_note').first()
+        node = db.query(GraphNode).filter(GraphNode.ref_id == str(note.id), GraphNode.node_type == 'daily_note', GraphNode.owner_id == current_user.id).first()
         if node:
             node.content = payload.content
             db.commit()
