@@ -153,8 +153,7 @@ def get_daily_note(note_date: date, db: Session = Depends(get_db), current_user:
     if not note:
         return {"date": note_date, "content": "", "category": "未分类", "tags": []}
     
-    tags_list = [t.strip() for t in note.tags.split(",")] if note.tags else []
-    return {"date": note.date, "content": note.content, "category": note.category or "未分类", "tags": tags_list}
+    return note
 
 async def _update_dify_doc(note_id: int, content: str, dataset_id: str):
     try:
