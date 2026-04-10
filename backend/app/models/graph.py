@@ -13,6 +13,10 @@ class GraphNode(Base):
     dify_doc_id = Column(String(255), nullable=True) # Dify 返回的 Document ID
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'
 
 class GraphEdge(Base):
     __tablename__ = "graph_edges"
@@ -23,3 +27,7 @@ class GraphEdge(Base):
     relation_type = Column(String(50), index=True) # 'extracted_from', 'relates_to'
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'

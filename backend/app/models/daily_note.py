@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -13,3 +13,7 @@ class DailyNote(Base):
     dify_document_id = Column(String(255), nullable=True)        # Sync to Dify knowledge base
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'

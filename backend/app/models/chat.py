@@ -13,3 +13,7 @@ class GlobalConversation(Base):
     history = Column(Text, nullable=True) # JSON array of messages
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'

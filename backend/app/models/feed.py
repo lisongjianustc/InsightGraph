@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -24,6 +24,10 @@ class FeedItem(Base):
     status = Column(String(50), default="unread")
     is_saved_to_kb = Column(Boolean, default=False) # 是否已整合进知识库
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'
 
 class SourceConfig(Base):
     __tablename__ = "source_configs"
@@ -34,3 +38,7 @@ class SourceConfig(Base):
     url = Column(String(512), nullable=False) # 订阅地址
     is_active = Column(Boolean, default=True) # 是否开启自动抓取
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 多租户权限隔离字段
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    visibility = Column(String, default="private", index=True) # 'public' or 'private'
