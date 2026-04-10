@@ -21,8 +21,15 @@ config = context.config
 # 动态获取当前环境变量中的数据库连接 URL
 import os
 from dotenv import load_dotenv
+load_dotenv()
 from app.core.database import SQLALCHEMY_DATABASE_URL
-config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL)
+
+# Fallback to local sqlite for migration if postgres fails to connect
+url = SQLALCHEMY_DATABASE_URL
+if 'postgresql' in url and not os.environ.get('DB_HOST'):
+    url = "sqlite:///./insight_graph.db"
+    
+config.set_main_option("sqlalchemy.url", url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
