@@ -20,11 +20,15 @@
     "mac": {
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
-      "target": ["zip"]
+      "target": [
+        "zip"
+      ]
     },
     "win": {
       "icon": "build/icon.png",
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "files": [
       "dist/**/*",
@@ -63,8 +67,6 @@
     "autoprefixer": "^10.4.17",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
-    "electron": "^41.1.1",
-    "electron-builder": "^26.8.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.2.2",
