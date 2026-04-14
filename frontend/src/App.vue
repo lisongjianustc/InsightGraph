@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
-import { watch } from 'vue'
+import { watch, onMounted } from 'vue'
+import { useTheme } from './composables/useTheme'
 
 const route = useRoute()
+const { initTheme } = useTheme()
+
+onMounted(() => {
+  initTheme()
+})
 
 watch(() => route.path, (path) => {
   if (path === '/spotlight') {
     document.body.style.backgroundColor = 'transparent'
   } else {
-    document.body.style.backgroundColor = '#f5f7fa'
+    // For non-spotlight pages, background color is managed by main.css CSS variables now.
+    document.body.style.backgroundColor = ''
   }
 }, { immediate: true })
 </script>

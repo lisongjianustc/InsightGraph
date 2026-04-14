@@ -33,12 +33,12 @@
             连接你的思考。
           </span>
         </h1>
-        <p class="text-lg text-gray-400 font-medium leading-relaxed">
+        <p class="text-lg text-secondary font-medium leading-relaxed">
           基于多租户 AI 架构的新一代知识管理系统。
         </p>
       </div>
       
-      <div class="relative z-10 text-sm text-gray-500 font-mono">
+      <div class="relative z-10 text-sm text-secondary font-mono">
         © {{ new Date().getFullYear() }} InsightGraph Inc.
       </div>
     </div>
@@ -66,7 +66,7 @@
       <div class="w-full max-w-[400px]">
         <div class="mb-10 text-center lg:text-left">
           <h2 class="text-3xl font-bold mb-2">{{ isLogin ? '欢迎回来' : '创建账号' }}</h2>
-          <p class="text-gray-400">
+          <p class="text-secondary">
             {{ isLogin ? '输入账号密码以进入你的知识图谱。' : '开始构建你的个人知识库。' }}
           </p>
         </div>
@@ -79,7 +79,7 @@
               v-model="form.username" 
               type="text" 
               required
-              class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-white placeholder-gray-500"
+              class="w-full px-4 py-3 bg-card/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-white placeholder-gray-500"
               placeholder="例如：admin"
             />
           </div>
@@ -91,7 +91,7 @@
               v-model="form.password" 
               type="password" 
               required
-              class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-white placeholder-gray-500"
+              class="w-full px-4 py-3 bg-card/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all text-white placeholder-gray-500"
               placeholder="••••••••"
             />
           </div>
@@ -103,7 +103,7 @@
           <button 
             type="submit" 
             :disabled="loading"
-            class="w-full py-3.5 px-4 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]"
+            class="w-full py-3.5 px-4 bg-card text-black font-semibold rounded-xl hover:bg-gray-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]"
           >
             <svg v-if="loading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -113,7 +113,7 @@
           </button>
         </form>
 
-        <div class="mt-8 text-center text-sm text-gray-400">
+        <div class="mt-8 text-center text-sm text-secondary">
           {{ isLogin ? '还没有账号？' : '已有账号？' }}
           <button 
             @click="toggleMode" 

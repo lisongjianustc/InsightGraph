@@ -2,6 +2,148 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Default Theme (Light) */
+  --app-bg: #ffffff;
+  --sidebar-bg: #f9fafb;
+  --card-bg: #ffffff;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --accent-color: #6366f1;
+  --glass-blur: none;
+}
+
+html.dark {
+  /* Default Theme (Dark) */
+  --app-bg: #111827;
+  --sidebar-bg: #1f2937;
+  --card-bg: #374151;
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --border-color: #4b5563;
+  --accent-color: #818cf8;
+}
+
+/* Forest Theme */
+html.theme-forest {
+  --app-bg: #f4f7f4;
+  --sidebar-bg: #e6ece6;
+  --card-bg: #ffffff;
+  --text-primary: #1f3328;
+  --text-secondary: #4d6657;
+  --border-color: #c9d6ce;
+  --accent-color: #059669;
+}
+html.dark.theme-forest {
+  --app-bg: #0f1714;
+  --sidebar-bg: #16241f;
+  --card-bg: #1c2b25;
+  --text-primary: #d1fae5;
+  --text-secondary: #6ee7b7;
+  --border-color: #064e3b;
+  --accent-color: #34d399;
+}
+
+/* Latte Theme */
+html.theme-latte {
+  --app-bg: #faf6f0;
+  --sidebar-bg: #f0eadd;
+  --card-bg: #ffffff;
+  --text-primary: #4a4036;
+  --text-secondary: #8c7b69;
+  --border-color: #e2d7c8;
+  --accent-color: #92400e;
+}
+html.dark.theme-latte {
+  --app-bg: #2a2421;
+  --sidebar-bg: #3b322e;
+  --card-bg: #4a3f3a;
+  --text-primary: #fceee3;
+  --text-secondary: #d4bda8;
+  --border-color: #5c4e48;
+  --accent-color: #fbbf24;
+}
+
+/* Geek Theme */
+html.theme-geek {
+  /* Forces Dark */
+  --app-bg: #000000;
+  --sidebar-bg: #0a0a0a;
+  --card-bg: #000000;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --border-color: #262626;
+  --accent-color: #00ff00;
+}
+html.dark.theme-geek {
+  --app-bg: #000000;
+  --sidebar-bg: #0a0a0a;
+  --card-bg: #000000;
+  --text-primary: #ffffff;
+  --text-secondary: #a3a3a3;
+  --border-color: #262626;
+  --accent-color: #00ff00;
+}
+
+/* Apple Glass Theme */
+html.theme-apple {
+  --app-bg: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  --sidebar-bg: rgba(255, 255, 255, 0.6);
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(20px) saturate(150%);
+  --text-primary: #1c1c1e;
+  --text-secondary: #636366;
+  --border-color: rgba(255, 255, 255, 0.4);
+  --accent-color: #007aff;
+}
+html.dark.theme-apple {
+  --app-bg: linear-gradient(135deg, #1e132c 0%, #0d1221 100%);
+  --sidebar-bg: rgba(30, 30, 30, 0.6);
+  --card-bg: rgba(40, 40, 40, 0.6);
+  --glass-blur: blur(20px) saturate(150%);
+  --text-primary: #f3f4f6;
+  --text-secondary: #a1a1aa;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --accent-color: #0a84ff;
+}
+
+/* ByteMD Theme overrides */
+.bytemd {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+.bytemd-toolbar {
+  background: var(--sidebar-bg) !important;
+  border-color: var(--border-color) !important;
+  backdrop-filter: var(--glass-blur) !important;
+}
+.bytemd-toolbar-icon {
+  color: var(--text-secondary) !important;
+}
+.bytemd-toolbar-icon:hover {
+  background: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+.markdown-body {
+  color: var(--text-primary) !important;
+}
+.markdown-body pre {
+  background: var(--sidebar-bg) !important;
+  border: 1px solid var(--border-color) !important;
+}
+.markdown-body code {
+  color: var(--accent-color) !important;
+  background: var(--sidebar-bg) !important;
+}
+.markdown-body blockquote {
+  color: var(--text-secondary) !important;
+  border-left-color: var(--accent-color) !important;
+}
+
 #app {
   min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--text-primary);
 }

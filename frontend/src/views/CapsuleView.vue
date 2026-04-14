@@ -1,13 +1,13 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col items-center pt-10 px-4 relative overflow-auto custom-scrollbar">
+  <div class="min-h-screen bg-app flex flex-col items-center pt-10 px-4 relative overflow-auto custom-scrollbar">
     <!-- 背景装饰 -->
     <div class="absolute top-0 w-full h-64 bg-gradient-to-b from-purple-100 to-transparent pointer-events-none"></div>
 
     <div class="max-w-3xl w-full z-10 flex flex-col flex-1">
       <!-- 头部 -->
       <div class="text-center mb-8 shrink-0">
-        <h1 class="text-4xl font-extrabold text-gray-800 tracking-tight mb-2">⚡️ 闪念胶囊</h1>
-        <p class="text-gray-500">记录一闪而过的灵感、文档或碎片化信息，自动构建专属知识网络</p>
+        <h1 class="text-4xl font-extrabold text-primary tracking-tight mb-2">⚡️ 闪念胶囊</h1>
+        <p class="text-secondary">记录一闪而过的灵感、文档或碎片化信息，自动构建专属知识网络</p>
       </div>
 
       <!-- 原版大输入区 -->
@@ -24,12 +24,12 @@
             :before-upload="beforeUpload"
             name="file"
           >
-            <div v-if="!isUploading" class="el-upload__text text-gray-400 p-4">
+            <div v-if="!isUploading" class="el-upload__text text-secondary p-4">
               <el-icon class="text-3xl mb-2 text-gray-300"><DocumentAdd /></el-icon>
               <div>拖拽文档到此处上传解析</div>
               <div class="text-xs mt-1">支持 图文 / PDF / Word / Excel / PPT / MD / TXT</div>
             </div>
-            <div v-else class="el-upload__text text-gray-400 p-4 flex flex-col items-center justify-center">
+            <div v-else class="el-upload__text text-secondary p-4 flex flex-col items-center justify-center">
               <el-icon class="text-3xl mb-2 text-blue-400 is-loading"><Loading /></el-icon>
               <div>正在解析文档，请稍候...</div>
             </div>
@@ -48,7 +48,7 @@
               @paste="handlePaste"
             />
             <div class="absolute bottom-3 right-3 flex items-center gap-3">
-              <span class="text-xs text-gray-400">Ctrl + Enter 发送</span>
+              <span class="text-xs text-secondary">Ctrl + Enter 发送</span>
               <el-button 
                 type="primary" 
                 class="!rounded-lg font-bold px-6 shadow-md"
@@ -95,12 +95,12 @@
             :key="cap.id" 
             :id="'capsule-' + cap.id"
             shadow="hover" 
-            class="rounded-lg border border-gray-100 hover:shadow-md transition-all group relative cursor-pointer"
+            class="rounded-lg border border-border hover:shadow-md transition-all group relative cursor-pointer"
             :class="{'highlight-flash': highlightedCapsuleId === cap.id}"
             @click="openCapsuleDetail(cap)"
           >
             <div class="flex justify-between items-start mb-2">
-              <span class="text-xs text-gray-400 font-mono">{{ formatDate(cap.created_at) }}</span>
+              <span class="text-xs text-secondary font-mono">{{ formatDate(cap.created_at) }}</span>
               <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
                 <el-button size="small" text type="primary" @click="openCapsuleDetail(cap, true)"><el-icon><Edit /></el-icon></el-button>
                 <el-button size="small" text type="danger" @click="confirmDelete(cap)"><el-icon><Delete /></el-icon></el-button>
@@ -117,7 +117,7 @@
       </div>
       
       <!-- 分页 (悬浮吸底) -->
-      <div class="fixed bottom-0 left-0 w-full flex justify-center py-4 bg-gray-50/90 backdrop-blur-md z-20 border-t border-gray-200/50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div class="fixed bottom-0 left-0 w-full flex justify-center py-4 bg-app/90 backdrop-blur-md z-20 border-t border-border/50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <el-pagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
@@ -142,7 +142,7 @@
       <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <h3 class="font-bold text-lg text-gray-800">{{ editingMode ? '编辑模式' : '沉浸阅读' }}</h3>
+            <h3 class="font-bold text-lg text-primary">{{ editingMode ? '编辑模式' : '沉浸阅读' }}</h3>
             <!-- 切换器：仅在查看模式且有附件时显示 -->
             <el-radio-group v-if="!editingMode && editingCapsule.file_url" v-model="capsuleViewMode" size="small">
               <el-radio-button label="file"><el-icon class="mr-1"><Document /></el-icon>原文件预览</el-radio-button>
@@ -174,7 +174,7 @@
               placeholder="在此修改你的 Markdown 内容..."
             />
           </div>
-          <div class="shrink-0 flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <div class="shrink-0 flex justify-end gap-3 pt-4 border-t border-border">
             <el-button @click="detailDrawerVisible = false">取消</el-button>
             <el-button type="primary" :loading="isSavingEdit" @click="saveEdit">
               保存修改
@@ -182,9 +182,9 @@
           </div>
         </div>
 
-        <div v-else class="flex-1 flex flex-col min-h-0 bg-white">
+        <div v-else class="flex-1 flex flex-col min-h-0 bg-card">
           <!-- 有文件附件且处于文件预览模式时渲染 -->
-          <div v-if="editingCapsule.file_url && capsuleViewMode === 'file'" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col h-full">
+          <div v-if="editingCapsule.file_url && capsuleViewMode === 'file'" class="flex-1 bg-app border border-border rounded-lg overflow-hidden flex flex-col h-full">
             <template v-if="getFileType(editingCapsule.file_type) === 'pdf'">
               <iframe :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full border-0"></iframe>
             </template>
@@ -198,21 +198,21 @@
               <vue-office-pptx :src="getFullUrl(editingCapsule.file_url)" class="w-full h-full" />
             </template>
             <template v-else>
-              <div class="p-8 text-center text-gray-500">该格式暂不支持直接预览，请<a :href="getFullUrl(editingCapsule.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
+              <div class="p-8 text-center text-secondary">该格式暂不支持直接预览，请<a :href="getFullUrl(editingCapsule.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
             </template>
           </div>
 
           <!-- 解析文本模式 -->
           <div v-else class="flex-1 overflow-auto custom-scrollbar">
             <div class="max-w-4xl mx-auto px-8 py-10" @mouseup="handleTextSelection">
-              <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-gray-900 border-b pb-6">{{ editingCapsule.title }}</h1>
+              <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-primary border-b pb-6">{{ editingCapsule.title }}</h1>
               <div class="markdown-body text-lg leading-loose">
                 <Viewer
                   :value="editingCapsule.content"
                   :plugins="plugins"
                 />
               </div>
-              <div class="mt-16 pt-8 border-t border-gray-100 text-sm text-gray-400 text-center font-mono">
+              <div class="mt-16 pt-8 border-t border-border text-sm text-secondary text-center font-mono">
                 记录于 {{ formatDate(editingCapsule.created_at) }}
               </div>
             </div>

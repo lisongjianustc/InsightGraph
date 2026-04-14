@@ -552,10 +552,10 @@ const triggerAIRewrite = async () => {
 </script>
 
 <template>
-  <div class="h-full flex overflow-hidden bg-white">
+  <div class="h-full flex overflow-hidden bg-card">
     <!-- 左侧侧边栏 (日历/分类 切换) -->
-    <div class="w-80 border-r border-gray-200 bg-gray-50/50 flex flex-col shrink-0">
-      <div class="p-4 border-b border-gray-200">
+    <div class="w-80 border-r border-border bg-app/50 flex flex-col shrink-0">
+      <div class="p-4 border-b border-border">
         <el-radio-group v-model="viewMode" class="w-full flex">
           <el-radio-button label="calendar" class="flex-1 text-center"><el-icon class="mr-1"><Calendar /></el-icon>日历</el-radio-button>
           <el-radio-button label="category" class="flex-1 text-center"><el-icon class="mr-1"><Folder /></el-icon>分类</el-radio-button>
@@ -593,21 +593,21 @@ const triggerAIRewrite = async () => {
             <div class="flex items-center gap-2 w-full pr-2 text-sm transition-colors py-1" 
                  :class="{'text-indigo-600 font-bold bg-indigo-50 px-2 rounded': data.type === 'note' && formatDate(selectedDate) === data.date}">
               <el-icon v-if="data.type === 'category'" class="text-yellow-500"><FolderOpened /></el-icon>
-              <el-icon v-else class="text-gray-400"><Document /></el-icon>
+              <el-icon v-else class="text-secondary"><Document /></el-icon>
               <span class="truncate flex-1" :class="{'font-medium text-gray-700': data.type === 'category'}">{{ node.label }}</span>
             </div>
           </template>
         </el-tree>
-        <div v-else class="text-center text-gray-400 text-sm mt-10">暂无分类数据</div>
+        <div v-else class="text-center text-secondary text-sm mt-10">暂无分类数据</div>
       </div>
     </div>
 
     <!-- 中间主编辑器区 -->
-    <div class="flex-1 flex flex-col relative bg-white min-w-0">
-      <div class="h-auto min-h-14 py-2 border-b border-gray-100 flex flex-col justify-center px-6 shrink-0 gap-2">
+    <div class="flex-1 flex flex-col relative bg-card min-w-0">
+      <div class="h-auto min-h-14 py-2 border-b border-border flex flex-col justify-center px-6 shrink-0 gap-2">
         <div class="flex items-center justify-between w-full">
           <div class="flex items-center gap-4">
-            <h1 class="text-xl font-bold text-gray-800">{{ formatDate(selectedDate) }}</h1>
+            <h1 class="text-xl font-bold text-primary">{{ formatDate(selectedDate) }}</h1>
             
             <el-select
               v-model="category"
@@ -641,9 +641,9 @@ const triggerAIRewrite = async () => {
               </el-option-group>
             </el-select>
             
-            <span v-if="isSaving" class="text-xs text-gray-400 transition-opacity">保存中...</span>
+            <span v-if="isSaving" class="text-xs text-secondary transition-opacity">保存中...</span>
             <span v-else-if="isCategorizing" class="text-xs text-indigo-500 transition-opacity flex items-center gap-1"><el-icon class="is-loading"><Loading /></el-icon> AI 自动分类中...</span>
-            <span v-else class="text-xs text-gray-400 transition-opacity">已保存</span>
+            <span v-else class="text-xs text-secondary transition-opacity">已保存</span>
           </div>
           <div class="flex gap-2 shrink-0">
             <el-button @click="showAIPanel = true" type="primary" plain size="small">
@@ -689,8 +689,8 @@ const triggerAIRewrite = async () => {
         />
         
         <!-- AI 浮窗 -->
-        <div v-if="showAIPanel" class="absolute top-4 right-4 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 flex flex-col max-h-[80vh]">
-          <h3 class="font-semibold text-gray-800 mb-3 flex items-center justify-between">
+        <div v-if="showAIPanel" class="absolute top-4 right-4 w-96 bg-card rounded-xl shadow-2xl border border-border p-4 z-50 flex flex-col max-h-[80vh]">
+          <h3 class="font-semibold text-primary mb-3 flex items-center justify-between">
             <span class="flex items-center gap-2"><el-icon class="text-purple-500"><MagicStick /></el-icon> AI 魔法棒</span>
             <el-radio-group v-model="aiMode" size="small">
               <el-radio-button label="template">模板</el-radio-button>
@@ -701,14 +701,14 @@ const triggerAIRewrite = async () => {
           <div class="flex-1 overflow-y-auto space-y-4 pr-1">
             <template v-if="aiMode === 'template'">
               <div v-for="(group, idx) in aiTemplateGroups" :key="idx" class="space-y-1">
-                <div class="text-xs text-gray-500 font-medium">{{ group.label }}</div>
+                <div class="text-xs text-secondary font-medium">{{ group.label }}</div>
                 <div class="grid grid-cols-3 gap-2">
                   <div 
                     v-for="opt in group.options" 
                     :key="opt.value"
                     @click="aiFormat = opt.value"
                     class="cursor-pointer border rounded text-center py-1.5 text-xs transition-colors"
-                    :class="aiFormat === opt.value ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'"
+                    :class="aiFormat === opt.value ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-medium' : 'border-border text-secondary hover:bg-app'"
                   >
                     {{ opt.label }}
                   </div>
@@ -716,7 +716,7 @@ const triggerAIRewrite = async () => {
               </div>
               
               <div>
-                <div class="flex items-center justify-between text-xs text-gray-500 cursor-pointer py-1" @click="showAdvanced = !showAdvanced">
+                <div class="flex items-center justify-between text-xs text-secondary cursor-pointer py-1" @click="showAdvanced = !showAdvanced">
                   <span>高级指令 (可选)</span>
                   <span>{{ showAdvanced ? '收起' : '展开' }}</span>
                 </div>
@@ -733,7 +733,7 @@ const triggerAIRewrite = async () => {
 
             <template v-else>
               <div class="space-y-2">
-                <div class="text-xs text-gray-500 font-medium">自定义提示词</div>
+                <div class="text-xs text-secondary font-medium">自定义提示词</div>
                 <el-input
                   v-model="aiCustomPrompt"
                   type="textarea"
@@ -744,7 +744,7 @@ const triggerAIRewrite = async () => {
             </template>
           </div>
 
-          <div class="pt-4 mt-2 border-t border-gray-100 space-y-2 shrink-0">
+          <div class="pt-4 mt-2 border-t border-border space-y-2 shrink-0">
             <el-button @click="triggerAIRewrite" type="primary" class="w-full" :loading="aiGenerating" :disabled="aiMode === 'custom' && !aiCustomPrompt.trim()">
               {{ aiGenerating ? '正在生成...' : '开始魔法生成' }}
             </el-button>
@@ -766,21 +766,21 @@ const triggerAIRewrite = async () => {
             
             <div class="max-h-[400px] overflow-y-auto space-y-2 custom-scrollbar">
               <div v-if="loadingBlockRefs" class="py-8 flex justify-center">
-                <el-icon class="is-loading text-gray-400 text-2xl"><Loading /></el-icon>
+                <el-icon class="is-loading text-secondary text-2xl"><Loading /></el-icon>
               </div>
-              <div v-else-if="blockRefResults.length === 0" class="py-8 text-center text-gray-400 text-sm">
+              <div v-else-if="blockRefResults.length === 0" class="py-8 text-center text-secondary text-sm">
                 没有找到匹配的块级引用
               </div>
               <div 
                 v-else
                 v-for="cap in blockRefResults" 
                 :key="cap.id"
-                class="p-3 border border-gray-100 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 cursor-pointer transition-colors"
+                class="p-3 border border-border rounded-lg hover:bg-indigo-50 hover:border-indigo-200 cursor-pointer transition-colors"
                 @click="insertBlockRef(cap)"
               >
-                <div v-if="cap.title" class="text-xs font-bold text-gray-800 mb-1 line-clamp-1"><el-icon class="text-indigo-500 mr-1"><Link /></el-icon>{{ cap.title }}</div>
-                <div class="text-sm text-gray-600 line-clamp-3 leading-relaxed">{{ cap.content }}</div>
-                <div class="text-[10px] text-gray-400 mt-2 flex justify-between">
+                <div v-if="cap.title" class="text-xs font-bold text-primary mb-1 line-clamp-1"><el-icon class="text-indigo-500 mr-1"><Link /></el-icon>{{ cap.title }}</div>
+                <div class="text-sm text-secondary line-clamp-3 leading-relaxed">{{ cap.content }}</div>
+                <div class="text-[10px] text-secondary mt-2 flex justify-between">
                   <span>{{ new Date(cap.created_at).toLocaleDateString() }}</span>
                   <span v-if="cap.content.includes('摘自文献') || cap.content.includes('摘自：')" class="text-indigo-400 font-medium">高亮片段</span>
                 </div>
@@ -792,8 +792,8 @@ const triggerAIRewrite = async () => {
     </div>
 
     <!-- 右侧引用库 -->
-    <div v-if="showReferences" class="w-80 border-l border-gray-200 bg-gray-50 flex flex-col">
-      <div class="p-4 border-b border-gray-200">
+    <div v-if="showReferences" class="w-80 border-l border-border bg-app flex flex-col">
+      <div class="p-4 border-b border-border">
         <h3 class="font-semibold text-gray-700 mb-3">知识素材库</h3>
         <el-input
           v-if="activeTab !== 'recommend'"
@@ -811,16 +811,16 @@ const triggerAIRewrite = async () => {
           <el-radio-button label="original" class="flex-1">文献原文</el-radio-button>
         </el-radio-group>
         <p v-if="activeTab === 'recommend'" class="text-xs text-indigo-500 mt-3 font-medium">✨ 根据您当前的书写内容，实时推荐可能相关的知识素材</p>
-        <p v-else class="text-xs text-gray-500 mt-3">拖拽或勾选卡片，召唤 AI 写作</p>
+        <p v-else class="text-xs text-secondary mt-3">拖拽或勾选卡片，召唤 AI 写作</p>
       </div>
       
       <div class="flex-1 overflow-y-auto p-4 space-y-3 pb-20">
         <!-- AI 推荐列表 -->
         <template v-if="activeTab === 'recommend'">
-          <div v-if="loadingRecommendations" class="text-sm text-gray-400 text-center py-4 flex items-center justify-center gap-2">
+          <div v-if="loadingRecommendations" class="text-sm text-secondary text-center py-4 flex items-center justify-center gap-2">
             <el-icon class="is-loading"><Loading /></el-icon> 正在检索相关记忆...
           </div>
-          <div v-else-if="recommendations.length === 0" class="text-sm text-gray-400 text-center py-4">
+          <div v-else-if="recommendations.length === 0" class="text-sm text-secondary text-center py-4">
             {{ content.length < 5 ? '多写一点内容，AI 将为您推荐相关素材' : '未找到强相关的历史素材' }}
           </div>
           <div 
@@ -830,7 +830,7 @@ const triggerAIRewrite = async () => {
           >
             <div class="flex-1 min-w-0">
               <div class="text-xs font-semibold text-indigo-700 truncate mb-1">{{ item.title }}</div>
-              <div class="text-xs text-gray-600 line-clamp-4 leading-relaxed">{{ item.content }}</div>
+              <div class="text-xs text-secondary line-clamp-4 leading-relaxed">{{ item.content }}</div>
               <div class="text-[10px] text-indigo-400 mt-2 font-mono">相似度: {{ (item.score * 100).toFixed(1) }}%</div>
             </div>
           </div>
@@ -838,53 +838,53 @@ const triggerAIRewrite = async () => {
 
         <!-- 胶囊列表 -->
         <template v-if="activeTab === 'capsule'">
-          <div v-if="recentCapsules.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配胶囊</div>
+          <div v-if="recentCapsules.length === 0" class="text-sm text-secondary text-center py-4">无匹配胶囊</div>
           <div 
             v-for="capsule in recentCapsules" 
             :key="'cap-'+capsule.id"
             draggable="true"
             @dragstart="handleDragStartCapsule($event, capsule)"
-            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
+            class="bg-card p-3 rounded-lg border border-border shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
           >
             <el-checkbox v-model="selectedCapsuleIds" :label="capsule.id" :value="capsule.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
-              <div class="text-xs text-gray-500 line-clamp-3">{{ capsule.content }}</div>
+              <div class="font-medium text-sm text-primary mb-1 line-clamp-1">{{ capsule.title || '无标题胶囊' }}</div>
+              <div class="text-xs text-secondary line-clamp-3">{{ capsule.content }}</div>
             </div>
           </div>
         </template>
         
         <!-- 文献摘要列表 -->
         <template v-if="activeTab === 'feed'">
-          <div v-if="recentFeeds.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配文献</div>
+          <div v-if="recentFeeds.length === 0" class="text-sm text-secondary text-center py-4">无匹配文献</div>
           <div 
             v-for="feed in recentFeeds" 
             :key="'feed-'+feed.id"
             draggable="true"
             @dragstart="handleDragStartFeed($event, feed)"
-            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
+            class="bg-card p-3 rounded-lg border border-border shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
           >
             <el-checkbox v-model="selectedFeedIds" :label="feed.id" :value="feed.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
-              <div class="text-xs text-gray-500 line-clamp-3">{{ feed.skim_summary || feed.summary || '暂无摘要' }}</div>
+              <div class="font-medium text-sm text-primary mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
+              <div class="text-xs text-secondary line-clamp-3">{{ feed.skim_summary || feed.summary || '暂无摘要' }}</div>
             </div>
           </div>
         </template>
 
         <!-- 文献原文列表 -->
         <template v-if="activeTab === 'original'">
-          <div v-if="recentFeeds.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配文献</div>
+          <div v-if="recentFeeds.length === 0" class="text-sm text-secondary text-center py-4">无匹配文献</div>
           <div 
             v-for="feed in recentFeeds" 
             :key="'orig-'+feed.id"
             draggable="true"
             @dragstart="handleDragStartOriginal($event, feed)"
-            class="bg-white p-3 rounded-lg border border-gray-200 shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
+            class="bg-card p-3 rounded-lg border border-border shadow-sm cursor-move hover:border-indigo-300 hover:shadow-md transition-all flex items-start gap-2"
           >
             <el-checkbox v-model="selectedOriginalIds" :label="feed.id" :value="feed.id" size="small" class="mt-0.5"><span class="hidden"></span></el-checkbox>
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm text-gray-800 mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
+              <div class="font-medium text-sm text-primary mb-1 line-clamp-2 leading-snug">{{ feed.title }}</div>
               <div class="text-xs text-indigo-500 font-medium">包含完整深度解析原文</div>
             </div>
           </div>

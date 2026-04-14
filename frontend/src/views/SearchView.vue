@@ -1,8 +1,8 @@
 <template>
-  <div class="h-full flex flex-col bg-gray-50 max-w-5xl mx-auto w-full">
+  <div class="h-full flex flex-col bg-app max-w-5xl mx-auto w-full">
     <!-- Search Header -->
-    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm mb-6 shrink-0">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+    <div class="bg-card p-6 rounded-xl border border-border shadow-sm mb-6 shrink-0">
+      <h2 class="text-2xl font-bold text-primary mb-4 flex items-center gap-2">
         <el-icon class="text-orange-500"><Search /></el-icon>
         主动文献检索
       </h2>
@@ -24,12 +24,12 @@
         </el-button>
       </div>
       <div class="flex items-center justify-between mt-3">
-        <p class="text-xs text-gray-400 flex items-center gap-1">
+        <p class="text-xs text-secondary flex items-center gap-1">
           <el-icon><InfoFilled /></el-icon>
           支持双引号精确短语匹配 (如: "large language models" agent)。也可直接使用 arXiv API 高级语法 (如 au:bengio AND cat:cs.AI)
         </p>
         <div v-if="hasSearched && results.length > 0" class="flex items-center gap-2">
-          <span class="text-xs text-gray-500">结果排序:</span>
+          <span class="text-xs text-secondary">结果排序:</span>
           <el-select v-model="sortBy" size="small" class="w-28" @change="sortResults">
             <el-option label="提交时间" value="submittedDate" />
             <el-option label="相关度" value="relevance" />
@@ -44,7 +44,7 @@
 
     <!-- Search Results -->
     <div class="flex-1 overflow-auto custom-scrollbar pr-2 pb-6">
-      <div v-if="!hasSearched" class="h-full flex flex-col items-center justify-center text-gray-400">
+      <div v-if="!hasSearched" class="h-full flex flex-col items-center justify-center text-secondary">
         <el-icon :size="64" class="mb-4 opacity-20"><Trophy /></el-icon>
         <p>探索浩瀚学术星海</p>
       </div>
@@ -58,8 +58,8 @@
           v-for="(item, index) in results" 
           :key="index" 
           shadow="hover" 
-          class="rounded-xl border border-gray-100 transition-shadow relative"
-          :class="{'bg-gray-50/50': item.is_imported}"
+          class="rounded-xl border border-border transition-shadow relative"
+          :class="{'bg-app/50': item.is_imported}"
         >
           <div class="absolute left-4 top-4 z-10">
             <el-checkbox v-model="item.selected" size="large" />
@@ -69,15 +69,15 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-2">
                 <el-tag size="small" type="warning" effect="dark">arXiv</el-tag>
-                <span class="text-xs text-gray-400 font-mono">{{ formatDate(item.published) }}</span>
+                <span class="text-xs text-secondary font-mono">{{ formatDate(item.published) }}</span>
               </div>
-              <h3 class="text-lg font-bold text-gray-800 leading-tight mb-2 hover:text-orange-600 transition-colors cursor-pointer">
+              <h3 class="text-lg font-bold text-primary leading-tight mb-2 hover:text-orange-600 transition-colors cursor-pointer">
                 <a :href="item.url" target="_blank">{{ item.title }}</a>
               </h3>
-              <p class="text-sm text-gray-500 mb-3 line-clamp-1 italic">
+              <p class="text-sm text-secondary mb-3 line-clamp-1 italic">
                 <el-icon><User /></el-icon> {{ item.authors.join(', ') }}
               </p>
-              <div class="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+              <div class="text-sm text-secondary line-clamp-3 leading-relaxed">
                 {{ item.summary }}
               </div>
             </div>
@@ -121,7 +121,7 @@
               </template>
               
               <el-tooltip content="在 arXiv 官网打开" placement="top">
-                <a :href="item.url" target="_blank" class="text-gray-400 hover:text-orange-500 mt-2 inline-block p-2">
+                <a :href="item.url" target="_blank" class="text-secondary hover:text-orange-500 mt-2 inline-block p-2">
                   <el-icon :size="18"><TopRight /></el-icon>
                 </a>
               </el-tooltip>
@@ -136,7 +136,7 @@
           plain
           round
           size="large"
-          class="w-48 text-gray-500 border-gray-300 hover:text-orange-500 hover:border-orange-500"
+          class="w-48 text-secondary border-gray-300 hover:text-orange-500 hover:border-orange-500"
           :loading="isLoadingMore" 
           @click="loadMoreResults"
         >
@@ -147,21 +147,21 @@
     </div>
     
     <!-- 悬浮批量操作栏 -->
-    <div v-if="selectedItems.length > 0" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200 flex items-center gap-6 z-50 transition-all">
-      <span class="text-gray-600 font-medium">已选择 <span class="text-orange-600 font-bold text-lg">{{ selectedItems.length }}</span> 篇文献</span>
+    <div v-if="selectedItems.length > 0" class="fixed bottom-8 left-1/2 -translate-x-1/2 bg-card/90 backdrop-blur-md px-6 py-4 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-border flex items-center gap-6 z-50 transition-all">
+      <span class="text-secondary font-medium">已选择 <span class="text-orange-600 font-bold text-lg">{{ selectedItems.length }}</span> 篇文献</span>
       <div class="h-6 w-px bg-gray-300"></div>
       <el-button type="primary" size="large" :loading="isBatchImporting" @click="handleBatchImport" class="px-8 font-bold shadow-md shadow-orange-500/20">
         <el-icon class="mr-2"><Download /></el-icon>
         批量加入知识库
       </el-button>
-      <el-button link @click="clearSelection" class="text-gray-400 hover:text-gray-600">取消选择</el-button>
+      <el-button link @click="clearSelection" class="text-secondary hover:text-secondary">取消选择</el-button>
     </div>
 
     <!-- 泛读摘要弹窗 -->
     <el-dialog v-model="skimDialogVisible" title="🤖 AI 泛读摘要 (Key Takeaways)" width="50%" destroy-on-close>
-      <div v-if="currentSkimContent" class="prose max-w-none text-gray-700 leading-relaxed text-sm bg-gray-50 p-6 rounded-lg border border-gray-100" v-html="renderMarkdown(currentSkimContent)">
+      <div v-if="currentSkimContent" class="prose max-w-none text-gray-700 leading-relaxed text-sm bg-app p-6 rounded-lg border border-border" v-html="renderMarkdown(currentSkimContent)">
       </div>
-      <div v-else class="flex flex-col items-center justify-center py-12 text-gray-400">
+      <div v-else class="flex flex-col items-center justify-center py-12 text-secondary">
         <el-icon class="is-loading text-4xl mb-4 text-blue-400"><Loading /></el-icon>
         <p>大模型正在后台努力阅读并生成摘要，请稍候再来看...</p>
       </div>
@@ -178,7 +178,7 @@
     >
       <template #header>
         <div class="flex justify-between items-center w-full">
-          <h4 class="font-bold text-gray-800 text-xl truncate flex-1 pr-4">
+          <h4 class="font-bold text-primary text-xl truncate flex-1 pr-4">
             <el-icon class="mr-2"><Reading /></el-icon>
             {{ currentDeepFeed?.title }}
           </h4>
@@ -197,18 +197,18 @@
       <div class="flex h-full -mt-5 -mx-5 relative overflow-hidden">
         <!-- 左侧：原文内容区 -->
         <div 
-          class="p-6 overflow-y-auto bg-gray-50 flex flex-col transition-all duration-300"
-          :class="deepLayoutMode === 'split' ? 'w-1/2 border-r border-gray-200' : 'w-full'"
+          class="p-6 overflow-y-auto bg-app flex flex-col transition-all duration-300"
+          :class="deepLayoutMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'"
         >
-          <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100 min-h-full flex flex-col relative">
+          <div class="bg-card p-8 rounded-xl shadow-sm border border-border min-h-full flex flex-col relative">
             
             <!-- 可折叠的顶部信息区 -->
             <div class="transition-all duration-300 ease-in-out overflow-hidden" 
-                 :class="isHeaderCollapsed ? 'max-h-0 opacity-0 mb-0 pb-0 border-0' : 'max-h-[300px] opacity-100 mb-6 pb-6 border-b border-gray-100'">
+                 :class="isHeaderCollapsed ? 'max-h-0 opacity-0 mb-0 pb-0 border-0' : 'max-h-[300px] opacity-100 mb-6 pb-6 border-b border-border'">
               <div class="flex justify-between items-start">
                 <div class="flex-1">
-                  <h1 class="text-2xl font-bold text-gray-900 mb-4">{{ currentDeepFeed?.title }}</h1>
-                  <div class="flex items-center gap-3 text-sm text-gray-500">
+                  <h1 class="text-2xl font-bold text-primary mb-4">{{ currentDeepFeed?.title }}</h1>
+                  <div class="flex items-center gap-3 text-sm text-secondary">
                     <el-tag :type="getSourceTagType(currentDeepFeed?.source || '')" size="small" class="uppercase">
                       {{ currentDeepFeed?.source }}
                     </el-tag>
@@ -253,7 +253,7 @@
               <el-button 
                 size="small" 
                 circle
-                class="shadow-sm border-gray-200"
+                class="shadow-sm border-border"
                 @click="isHeaderCollapsed = !isHeaderCollapsed"
                 :title="isHeaderCollapsed ? '展开信息' : '折叠信息以扩大阅读区'"
               >
@@ -282,12 +282,12 @@
                   :src="`http://localhost:8000${translatedPdfUrlMono}`" 
                   class="w-full min-h-[600px] flex-1 border-0 rounded-md"
                 ></iframe>
-                <div v-else class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
+                <div v-else class="prose max-w-none text-primary leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
                   {{ translatedContent || '正在翻译中...' }}
                 </div>
               </template>
               <template v-else>
-                <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
+                <div class="prose max-w-none text-primary leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
                   {{ currentDeepFeed?.full_text || currentDeepFeed?.content }}
                   <div v-if="!currentDeepFeed?.full_text && currentDeepFeed?.source === 'arxiv'" class="mt-4 p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm">
                     <el-icon><Warning /></el-icon> 当前展示的仅为网页摘要。系统正在后台尝试抓取并解析 PDF 全文，请稍后再试或切换到原版 PDF 视图。
@@ -302,13 +302,13 @@
         <div 
           :class="[
             deepLayoutMode === 'split' 
-              ? 'w-1/2 flex flex-col bg-white border-l border-gray-200' 
-              : 'absolute bottom-6 right-6 w-[400px] h-[650px] max-h-[85vh] bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] rounded-2xl flex flex-col z-50 border border-gray-200 overflow-hidden transition-all duration-300 transform',
+              ? 'w-1/2 flex flex-col bg-card border-l border-border' 
+              : 'absolute bottom-6 right-6 w-[400px] h-[650px] max-h-[85vh] bg-card shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] rounded-2xl flex flex-col z-50 border border-border overflow-hidden transition-all duration-300 transform',
             deepLayoutMode === 'full' && !isChatFloatingVisible ? 'translate-y-[120%] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
           ]"
         >
           <!-- 悬浮窗 Header (仅全屏模式显示) -->
-          <div v-if="deepLayoutMode === 'full'" class="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div v-if="deepLayoutMode === 'full'" class="flex justify-between items-center p-4 border-b border-border bg-app flex-shrink-0">
             <div class="font-bold text-gray-700 flex items-center gap-2">
               <el-icon><ChatDotRound /></el-icon> 精读助手
             </div>
@@ -332,7 +332,7 @@
           </div>
           
           <!-- 分栏模式的 Header -->
-          <div v-if="deepLayoutMode === 'split'" class="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div v-if="deepLayoutMode === 'split'" class="flex justify-between items-center p-4 border-b border-border bg-app flex-shrink-0">
             <div class="font-bold text-gray-700 flex items-center gap-2">
               <el-icon><ChatDotRound /></el-icon> 精读助手
             </div>
@@ -344,7 +344,7 @@
           </div>
 
           <!-- 聊天记录区 -->
-          <div class="flex-1 p-6 overflow-y-auto bg-gray-50">
+          <div class="flex-1 p-6 overflow-y-auto bg-app">
             <div class="space-y-6">
               <div v-for="msg in chatMessages" :key="msg.id" 
                    class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
@@ -364,7 +364,7 @@
                   <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
                     <div 
                       class="px-4 py-3 rounded-2xl shadow-sm"
-                      :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'">
+                      :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-card border border-border text-primary rounded-tl-sm'">
                       <div class="prose prose-sm max-w-none whitespace-pre-wrap" :class="msg.role === 'user' ? 'text-white' : ''">
                         {{ msg.content }}
                       </div>
@@ -410,7 +410,7 @@
               <div v-if="chatLoading" class="flex justify-start">
                 <div class="flex gap-3">
                   <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white">AI</div>
-                  <div class="px-4 py-3 bg-white border border-gray-200 rounded-2xl rounded-tl-sm shadow-sm text-gray-500 flex items-center gap-2">
+                  <div class="px-4 py-3 bg-card border border-border rounded-2xl rounded-tl-sm shadow-sm text-secondary flex items-center gap-2">
                     <el-icon class="is-loading"><Refresh /></el-icon> 正在思考...
                   </div>
                 </div>
@@ -419,7 +419,7 @@
           </div>
           
           <!-- 输入区 -->
-          <div class="p-4 border-t border-gray-200 bg-white">
+          <div class="p-4 border-t border-border bg-card">
             <el-input
               v-model="chatInput"
               type="textarea"
@@ -429,7 +429,7 @@
               @keydown.enter.exact.prevent="sendChatMessage"
             />
             <div class="flex justify-between items-center mt-3">
-              <span class="text-xs text-gray-400">💡 提示：将存入 DIFY_DATASET_DEEP_ID</span>
+              <span class="text-xs text-secondary">💡 提示：将存入 DIFY_DATASET_DEEP_ID</span>
               <el-button type="primary" :disabled="!chatInput.trim() || chatLoading" @click="sendChatMessage">
                 发送 <el-icon class="ml-1"><Position /></el-icon>
               </el-button>

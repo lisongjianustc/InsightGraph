@@ -6,7 +6,17 @@ export default {
     "./src/**/*.{vue,js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        app: 'var(--app-bg)',
+        sidebar: 'var(--sidebar-bg)',
+        card: 'var(--card-bg)',
+        primary: 'var(--text-primary)',
+        secondary: 'var(--text-secondary)',
+        accent: 'var(--accent-color)',
+        border: 'var(--border-color)',
+      },
+    },
   },
   plugins: [],
 }

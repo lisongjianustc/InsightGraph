@@ -1,24 +1,25 @@
 <template>
   <div class="max-w-4xl mx-auto py-8">
     <div class="mb-8">
-      <h1 class="text-3xl font-extrabold text-gray-800 flex items-center gap-3">
+      <h1 class="text-3xl font-extrabold text-primary flex items-center gap-3">
         <el-icon class="text-blue-500"><Setting /></el-icon>
         系统设置
       </h1>
-      <p class="text-gray-500 mt-2">管理 InsightGraph 的外观、信息源及同步策略</p>
+      <p class="text-secondary mt-2">管理 InsightGraph 的外观、信息源及同步策略</p>
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" class="bg-white rounded-xl shadow-sm">
+    <el-tabs v-model="activeTab" type="border-card" class="bg-card rounded-xl shadow-sm">
       <!-- 基础设置 -->
       <el-tab-pane label="基础设置" name="base" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><Monitor /></el-icon> 外观与基础</span>
         </template>
         <div class="p-6 space-y-8">
+          <!-- 亮度模式 -->
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-lg font-bold text-gray-700">深色模式 (Dark Mode)</h3>
-              <p class="text-sm text-gray-500">开启深色模式以在夜间获得更好的阅读体验。</p>
+              <p class="text-sm text-secondary">切换应用的明暗色调。</p>
             </div>
             <el-switch
               v-model="isDark"
@@ -32,10 +33,73 @@
 
           <el-divider />
 
+          <!-- 主题风格选择 -->
+          <div>
+            <h3 class="text-lg font-bold text-gray-700 mb-2">色彩主题 (Theme)</h3>
+            <p class="text-sm text-secondary mb-6">选择适合您的阅读与创作氛围。</p>
+            
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <!-- 默认主题 -->
+              <div 
+                @click="setTheme('default')"
+                class="cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md"
+                :class="currentTheme === 'default' ? 'border-indigo-500 bg-indigo-50' : 'border-border hover:border-indigo-200'"
+              >
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-sm"></div>
+                <span class="text-sm font-bold text-gray-700">科技紫</span>
+              </div>
+              
+              <!-- 森林主题 -->
+              <div 
+                @click="setTheme('forest')"
+                class="cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md"
+                :class="currentTheme === 'forest' ? 'border-emerald-500 bg-emerald-50' : 'border-border hover:border-emerald-200'"
+              >
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-sm"></div>
+                <span class="text-sm font-bold text-gray-700">护眼森林</span>
+              </div>
+
+              <!-- 拿铁主题 -->
+              <div 
+                @click="setTheme('latte')"
+                class="cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md"
+                :class="currentTheme === 'latte' ? 'border-amber-600 bg-amber-50' : 'border-border hover:border-amber-200'"
+              >
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-amber-600 to-orange-400 shadow-sm"></div>
+                <span class="text-sm font-bold text-gray-700">复古拿铁</span>
+              </div>
+
+              <!-- 极客黑主题 -->
+              <div 
+                @click="setTheme('geek')"
+                class="cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md"
+                :class="currentTheme === 'geek' ? 'border-gray-800 bg-gray-100' : 'border-border hover:border-gray-300'"
+              >
+                <div class="w-10 h-10 rounded-full bg-black shadow-sm border border-gray-600 flex items-center justify-center">
+                  <div class="w-4 h-4 rounded-full bg-green-500"></div>
+                </div>
+                <span class="text-sm font-bold text-gray-700">极客纯黑</span>
+              </div>
+
+              <!-- Apple Glass 主题 -->
+              <div 
+                @click="setTheme('apple')"
+                class="cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center gap-3 transition-all hover:shadow-md relative overflow-hidden"
+                :class="currentTheme === 'apple' ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-blue-200'"
+              >
+                <div class="absolute inset-0 bg-gradient-to-br from-pink-100 via-purple-100 to-blue-100 opacity-50"></div>
+                <div class="w-10 h-10 rounded-full bg-card/40 backdrop-blur-md shadow-sm border border-white/60 z-10"></div>
+                <span class="text-sm font-bold text-gray-700 z-10">果味毛玻璃</span>
+              </div>
+            </div>
+          </div>
+
+          <el-divider />
+
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-lg font-bold text-gray-700">Dify 知识库状态</h3>
-              <p class="text-sm text-gray-500">检查连接至本地 Dify 实例的连通性。</p>
+              <p class="text-sm text-secondary">检查连接至本地 Dify 实例的连通性。</p>
             </div>
             <el-button type="success" plain size="small">
               <el-icon class="mr-1"><Check /></el-icon> 连接正常
@@ -52,8 +116,8 @@
           <el-alert v-if="me.must_change_password" title="当前账号为临时密码状态，请先修改密码后再使用系统功能" type="warning" show-icon :closable="false" />
 
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-gray-50 border border-gray-100 rounded-xl p-5">
-              <h3 class="text-lg font-bold text-gray-800 mb-4">个人信息</h3>
+            <div class="bg-app border border-border rounded-xl p-5">
+              <h3 class="text-lg font-bold text-primary mb-4">个人信息</h3>
               <el-form label-width="84px">
                 <el-form-item label="用户名">
                   <el-input :model-value="me.username" disabled />
@@ -70,8 +134,8 @@
               </el-form>
             </div>
 
-            <div class="bg-gray-50 border border-gray-100 rounded-xl p-5">
-              <h3 class="text-lg font-bold text-gray-800 mb-4">修改密码</h3>
+            <div class="bg-app border border-border rounded-xl p-5">
+              <h3 class="text-lg font-bold text-primary mb-4">修改密码</h3>
               <el-form label-width="84px">
                 <el-form-item label="旧密码" required>
                   <el-input v-model="passwordForm.old_password" type="password" show-password />
@@ -86,7 +150,7 @@
                   <el-button type="primary" :loading="changingPassword" @click="changePassword">确认修改</el-button>
                 </el-form-item>
               </el-form>
-              <p class="text-xs text-gray-500 mt-2">修改密码后将强制下线，需要重新登录。</p>
+              <p class="text-xs text-secondary mt-2">修改密码后将强制下线，需要重新登录。</p>
             </div>
           </div>
         </div>
@@ -110,7 +174,7 @@
 
           <div>
             <h3 class="text-lg font-bold text-gray-700 mb-4">手动触发同步</h3>
-            <p class="text-sm text-gray-500 mb-4">如果你不想等待下一个周期，可以立即触发后台抓取任务。</p>
+            <p class="text-sm text-secondary mb-4">如果你不想等待下一个周期，可以立即触发后台抓取任务。</p>
             <el-button type="primary" @click="triggerSync" :loading="isSyncing">
               <el-icon class="mr-1"><Download /></el-icon> 立即拉取最新文献
             </el-button>
@@ -127,7 +191,7 @@
           <div class="flex items-center justify-between mb-4">
             <div>
               <h3 class="text-lg font-bold text-gray-700">配置订阅源 (RSS/API)</h3>
-              <p class="text-sm text-gray-500">添加你关注的博客、期刊或 Arxiv 分类链接。</p>
+              <p class="text-sm text-secondary">添加你关注的博客、期刊或 Arxiv 分类链接。</p>
             </div>
             <el-button type="primary" @click="openSourceDialog()">
               <el-icon class="mr-1"><Plus /></el-icon> 添加源
@@ -191,7 +255,7 @@
         </template>
         <div class="p-6">
           <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold text-gray-800">全量每日笔记分类</h2>
+            <h2 class="text-xl font-bold text-primary">全量每日笔记分类</h2>
             <div>
               <el-button type="primary" size="small" @click="openCreateCategoryDialog">
                 <el-icon class="mr-1"><Plus /></el-icon> 新增分类
@@ -304,16 +368,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useDark } from '@vueuse/core'
 import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus, FolderOpened, User } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
+import { useTheme } from '../composables/useTheme'
 
 const API_BASE = 'http://localhost:8000/api'
 const route = useRoute()
 const router = useRouter()
 const activeTab = ref('base')
-const isDark = useDark()
+
+const { isDark, currentTheme, setTheme } = useTheme()
 
 const isSyncing = ref(false)
 const loadingTags = ref(false)

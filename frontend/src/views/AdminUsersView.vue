@@ -2,11 +2,11 @@
   <div class="max-w-5xl mx-auto py-8">
     <div class="mb-8 flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-extrabold text-gray-800 flex items-center gap-3">
+        <h1 class="text-3xl font-extrabold text-primary flex items-center gap-3">
           <el-icon class="text-indigo-500"><User /></el-icon>
           用户管理
         </h1>
-        <p class="text-gray-500 mt-2">仅管理员可查看与管理用户状态、重置密码</p>
+        <p class="text-secondary mt-2">仅管理员可查看与管理用户状态、重置密码</p>
       </div>
       <div class="flex items-center gap-2">
         <el-input v-model="keyword" placeholder="搜索用户名/昵称/邮箱" clearable style="width: 260px" @keyup.enter="fetchUsers" />
@@ -14,7 +14,7 @@
       </div>
     </div>
 
-    <el-table :data="users" v-loading="loading" class="border rounded-lg bg-white" style="width: 100%">
+    <el-table :data="users" v-loading="loading" class="border rounded-lg bg-card" style="width: 100%">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="username" label="用户名" width="160" />
       <el-table-column prop="display_name" label="昵称" width="160" show-overflow-tooltip />

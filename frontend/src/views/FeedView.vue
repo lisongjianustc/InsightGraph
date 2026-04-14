@@ -697,9 +697,9 @@ onMounted(() => {
 <template>
   <div class="max-w-6xl mx-auto">
     <!-- 快捷录入区 -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative bytemd-wrapper feed-bytemd mb-8">
-      <div class="px-5 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <h3 class="font-bold text-gray-800 flex items-center">
+    <div class="bg-card rounded-xl shadow-sm border border-border overflow-hidden relative bytemd-wrapper feed-bytemd mb-8">
+      <div class="px-5 py-4 border-b border-border bg-app/50 flex justify-between items-center">
+        <h3 class="font-bold text-primary flex items-center">
           <el-icon class="mr-2 text-indigo-500"><EditPen /></el-icon>
           闪念胶囊 (Quick Note)
         </h3>
@@ -714,8 +714,8 @@ onMounted(() => {
           placeholder="记录下刚才的灵感或碎片知识，支持 Markdown 或直接粘贴截图..."
         />
       </div>
-      <div class="px-4 py-3 bg-gray-50 flex justify-between items-center border-t border-gray-100">
-        <div class="text-xs text-gray-400 font-mono">
+      <div class="px-4 py-3 bg-app flex justify-between items-center border-t border-border">
+        <div class="text-xs text-secondary font-mono">
           <span v-if="quickNoteContent.length > 0">{{ quickNoteContent.length }} chars</span>
         </div>
         <div class="flex items-center gap-3">
@@ -728,7 +728,7 @@ onMounted(() => {
 
     <!-- 资讯流 Header -->
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-xl font-bold text-gray-800">今日资讯 (Feeds)</h3>
+      <h3 class="text-xl font-bold text-primary">今日资讯 (Feeds)</h3>
       <div class="flex items-center gap-3">
         <el-button type="primary" plain :loading="isSyncing" @click="triggerSync">
           <el-icon class="mr-1"><Download /></el-icon> 手动拉取最新资讯
@@ -755,9 +755,9 @@ onMounted(() => {
             每日温故 (Spaced Repetition)
             <el-tag size="small" type="warning" effect="plain" class="ml-2">{{ dailyReview.type === 'capsule' ? '闪念胶囊' : '精读文献' }}</el-tag>
           </div>
-          <h4 class="text-lg font-bold text-gray-800 mb-2 line-clamp-1">{{ dailyReview.data.title || '无标题' }}</h4>
-          <div class="text-sm text-gray-600 line-clamp-3 mb-3">{{ dailyReview.data.content }}</div>
-          <div class="text-xs text-gray-400">
+          <h4 class="text-lg font-bold text-primary mb-2 line-clamp-1">{{ dailyReview.data.title || '无标题' }}</h4>
+          <div class="text-sm text-secondary line-clamp-3 mb-3">{{ dailyReview.data.content }}</div>
+          <div class="text-xs text-secondary">
             收录于 {{ formatDate(dailyReview.data.date) }}
           </div>
         </div>
@@ -766,7 +766,7 @@ onMounted(() => {
 
     <el-skeleton :loading="loading" animated :count="3" class="space-y-4">
       <template #template>
-        <div class="bg-white p-6 rounded-xl border border-gray-100 mb-4">
+        <div class="bg-card p-6 rounded-xl border border-border mb-4">
           <el-skeleton-item variant="h3" style="width: 50%" />
           <el-skeleton-item variant="text" style="width: 100%; margin-top: 16px" />
           <el-skeleton-item variant="text" style="width: 80%" />
@@ -774,13 +774,13 @@ onMounted(() => {
       </template>
       
       <template #default>
-        <div v-if="filteredFeeds.length === 0" class="text-center py-12 text-gray-400">
+        <div v-if="filteredFeeds.length === 0" class="text-center py-12 text-secondary">
           <el-empty description="暂无资讯，请检查抓取任务或切换分类" />
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div v-for="feed in filteredFeeds" :key="feed.id" 
-               class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md flex flex-col">
+               class="bg-card rounded-xl shadow-sm border border-border overflow-hidden transition-all hover:shadow-md flex flex-col">
             <div class="p-6 flex-1 flex flex-col">
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
@@ -791,10 +791,10 @@ onMounted(() => {
                     <el-icon><Refresh /></el-icon>
                   </el-button>
                 </div>
-                <span class="text-xs text-gray-400">{{ formatDate(feed.created_at) }}</span>
+                <span class="text-xs text-secondary">{{ formatDate(feed.created_at) }}</span>
               </div>
               
-              <h4 class="text-lg font-bold text-gray-800 mb-3 line-clamp-2">
+              <h4 class="text-lg font-bold text-primary mb-3 line-clamp-2">
                 <a v-if="feed.url" :href="feed.url" target="_blank" class="hover:text-blue-600 transition-colors">
                   {{ feed.title }}
                 </a>
@@ -815,7 +815,7 @@ onMounted(() => {
                 <el-tag v-if="getKeywords(feed).length > 6" type="info" size="small" round>...</el-tag>
               </div>
               
-              <p class="text-gray-600 text-sm whitespace-pre-line leading-relaxed mb-6 flex-1 line-clamp-4">
+              <p class="text-secondary text-sm whitespace-pre-line leading-relaxed mb-6 flex-1 line-clamp-4">
                 {{ feed.content }}
               </p>
               
@@ -875,8 +875,8 @@ onMounted(() => {
       <div v-if="reviewCapsuleData" class="mb-4 h-full flex flex-col">
         <div class="flex justify-between items-start mb-4">
           <div>
-            <h4 class="font-bold text-gray-800 text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
-            <div class="text-xs text-gray-400">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
+            <h4 class="font-bold text-primary text-lg mb-2">{{ reviewCapsuleData.title }}</h4>
+            <div class="text-xs text-secondary">记录于 {{ formatDate(reviewCapsuleData.date) }}</div>
           </div>
           
           <!-- 切换器：仅当有附件时显示 -->
@@ -887,7 +887,7 @@ onMounted(() => {
         </div>
         
         <!-- 有文件附件且处于文件预览模式时渲染 -->
-        <div v-if="reviewCapsuleData.file_url && capsuleViewMode === 'file'" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden flex flex-col min-h-[70vh]">
+        <div v-if="reviewCapsuleData.file_url && capsuleViewMode === 'file'" class="flex-1 bg-app border border-border rounded-lg overflow-hidden flex flex-col min-h-[70vh]">
           <template v-if="getFileType(reviewCapsuleData.file_type) === 'pdf'">
             <iframe :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh] border-0"></iframe>
           </template>
@@ -901,7 +901,7 @@ onMounted(() => {
             <vue-office-pptx :src="getFullUrl(reviewCapsuleData.file_url)" class="w-full h-full min-h-[70vh]" />
           </template>
           <template v-else>
-            <div class="p-8 text-center text-gray-500">该格式暂不支持直接预览，请<a :href="getFullUrl(reviewCapsuleData.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
+            <div class="p-8 text-center text-secondary">该格式暂不支持直接预览，请<a :href="getFullUrl(reviewCapsuleData.file_url)" target="_blank" class="text-blue-500 hover:underline">点击下载</a></div>
           </template>
         </div>
         
@@ -926,13 +926,13 @@ onMounted(() => {
       width="60%"
       destroy-on-close
     >
-      <div v-if="currentSkimFeed" class="mb-4 pb-4 border-b border-gray-200">
-        <h4 class="font-bold text-gray-800 text-lg mb-2">{{ currentSkimFeed.title }}</h4>
-        <p class="text-gray-500 text-sm">来源: {{ currentSkimFeed.source.toUpperCase() }}</p>
+      <div v-if="currentSkimFeed" class="mb-4 pb-4 border-b border-border">
+        <h4 class="font-bold text-primary text-lg mb-2">{{ currentSkimFeed.title }}</h4>
+        <p class="text-secondary text-sm">来源: {{ currentSkimFeed.source.toUpperCase() }}</p>
       </div>
       
       <div v-loading="skimLoading" element-loading-text="大模型正在分析文章主旨要义..." class="min-h-[150px]">
-        <div v-if="!skimLoading" class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line bg-gray-50 p-4 rounded-lg">
+        <div v-if="!skimLoading" class="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-line bg-app p-4 rounded-lg">
           {{ currentSkimSummary }}
         </div>
       </div>
@@ -959,7 +959,7 @@ onMounted(() => {
     >
       <template #header>
         <div class="flex justify-between items-center w-full">
-          <h4 class="font-bold text-gray-800 text-xl truncate flex-1 pr-4">
+          <h4 class="font-bold text-primary text-xl truncate flex-1 pr-4">
             <el-icon class="mr-2"><Reading /></el-icon>
             {{ currentDeepFeed?.title }}
           </h4>
@@ -978,18 +978,18 @@ onMounted(() => {
       <div class="flex h-full -mt-5 -mx-5 relative overflow-hidden">
         <!-- 左侧：原文内容区 -->
         <div 
-          class="p-6 overflow-y-auto bg-gray-50 flex flex-col transition-all duration-300"
-          :class="deepLayoutMode === 'split' ? 'w-1/2 border-r border-gray-200' : 'w-full'"
+          class="p-6 overflow-y-auto bg-app flex flex-col transition-all duration-300"
+          :class="deepLayoutMode === 'split' ? 'w-1/2 border-r border-border' : 'w-full'"
         >
-          <div class="bg-white p-8 rounded-xl shadow-sm border border-gray-100 min-h-full flex flex-col relative">
+          <div class="bg-card p-8 rounded-xl shadow-sm border border-border min-h-full flex flex-col relative">
             
             <!-- 可折叠的顶部信息区 -->
             <div class="transition-all duration-300 ease-in-out overflow-hidden" 
-                 :class="isHeaderCollapsed ? 'max-h-0 opacity-0 mb-0 pb-0 border-0' : 'max-h-[300px] opacity-100 mb-6 pb-6 border-b border-gray-100'">
+                 :class="isHeaderCollapsed ? 'max-h-0 opacity-0 mb-0 pb-0 border-0' : 'max-h-[300px] opacity-100 mb-6 pb-6 border-b border-border'">
               <div class="flex justify-between items-start">
                 <div class="flex-1">
-                  <h1 class="text-2xl font-bold text-gray-900 mb-4">{{ currentDeepFeed?.title }}</h1>
-                  <div class="flex items-center gap-3 text-sm text-gray-500">
+                  <h1 class="text-2xl font-bold text-primary mb-4">{{ currentDeepFeed?.title }}</h1>
+                  <div class="flex items-center gap-3 text-sm text-secondary">
                     <el-tag :type="getSourceTagType(currentDeepFeed?.source || '')" size="small" class="uppercase">
                       {{ currentDeepFeed?.source }}
                     </el-tag>
@@ -1034,7 +1034,7 @@ onMounted(() => {
               <el-button 
                 size="small" 
                 circle
-                class="shadow-sm border-gray-200"
+                class="shadow-sm border-border"
                 @click="isHeaderCollapsed = !isHeaderCollapsed"
                 :title="isHeaderCollapsed ? '展开信息' : '折叠信息以扩大阅读区'"
               >
@@ -1063,12 +1063,12 @@ onMounted(() => {
                   :src="`http://localhost:8000${translatedPdfUrlMono}`" 
                   class="w-full min-h-[600px] flex-1 border-0 rounded-md"
                 ></iframe>
-                <div v-else class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
+                <div v-else class="prose max-w-none text-primary leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
                   {{ translatedContent || '正在翻译中...' }}
                 </div>
               </template>
               <template v-else>
-                <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
+                <div class="prose max-w-none text-primary leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
                   {{ currentDeepFeed?.full_text || currentDeepFeed?.content }}
                   <div v-if="!currentDeepFeed?.full_text && currentDeepFeed?.source === 'arxiv'" class="mt-4 p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm">
                     <el-icon><Warning /></el-icon> 当前展示的仅为网页摘要。系统正在后台尝试抓取并解析 PDF 全文，请稍后再试或切换到原版 PDF 视图。
@@ -1083,13 +1083,13 @@ onMounted(() => {
         <div 
           :class="[
             deepLayoutMode === 'split' 
-              ? 'w-1/2 flex flex-col bg-white border-l border-gray-200' 
-              : 'absolute bottom-6 right-6 w-[400px] h-[650px] max-h-[85vh] bg-white shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] rounded-2xl flex flex-col z-50 border border-gray-200 overflow-hidden transition-all duration-300 transform',
+              ? 'w-1/2 flex flex-col bg-card border-l border-border' 
+              : 'absolute bottom-6 right-6 w-[400px] h-[650px] max-h-[85vh] bg-card shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] rounded-2xl flex flex-col z-50 border border-border overflow-hidden transition-all duration-300 transform',
             deepLayoutMode === 'full' && !isChatFloatingVisible ? 'translate-y-[120%] opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
           ]"
         >
           <!-- 悬浮窗 Header (仅全屏模式显示) -->
-          <div v-if="deepLayoutMode === 'full'" class="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div v-if="deepLayoutMode === 'full'" class="flex justify-between items-center p-4 border-b border-border bg-app flex-shrink-0">
             <div class="font-bold text-gray-700 flex items-center gap-2">
               <el-icon><ChatDotRound /></el-icon> 精读助手
             </div>
@@ -1113,7 +1113,7 @@ onMounted(() => {
           </div>
           
           <!-- 分栏模式的 Header -->
-          <div v-if="deepLayoutMode === 'split'" class="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+          <div v-if="deepLayoutMode === 'split'" class="flex justify-between items-center p-4 border-b border-border bg-app flex-shrink-0">
             <div class="font-bold text-gray-700 flex items-center gap-2">
               <el-icon><ChatDotRound /></el-icon> 精读助手
             </div>
@@ -1125,7 +1125,7 @@ onMounted(() => {
           </div>
 
           <!-- 聊天记录区 -->
-          <div class="flex-1 p-6 overflow-y-auto bg-gray-50">
+          <div class="flex-1 p-6 overflow-y-auto bg-app">
             <div class="space-y-6">
               <div v-for="msg in chatMessages" :key="msg.id" 
                    class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
@@ -1145,7 +1145,7 @@ onMounted(() => {
                   <div class="flex flex-col" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
                     <div 
                       class="px-4 py-3 rounded-2xl shadow-sm"
-                      :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'">
+                      :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-card border border-border text-primary rounded-tl-sm'">
                       <div class="prose prose-sm max-w-none whitespace-pre-wrap" :class="msg.role === 'user' ? 'text-white' : ''">
                         {{ msg.content }}
                       </div>
@@ -1191,7 +1191,7 @@ onMounted(() => {
               <div v-if="chatLoading" class="flex justify-start">
                 <div class="flex gap-3">
                   <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white">AI</div>
-                  <div class="px-4 py-3 bg-white border border-gray-200 rounded-2xl rounded-tl-sm shadow-sm text-gray-500 flex items-center gap-2">
+                  <div class="px-4 py-3 bg-card border border-border rounded-2xl rounded-tl-sm shadow-sm text-secondary flex items-center gap-2">
                     <el-icon class="is-loading"><Refresh /></el-icon> 正在思考...
                   </div>
                 </div>
@@ -1200,7 +1200,7 @@ onMounted(() => {
           </div>
           
           <!-- 输入区 -->
-          <div class="p-4 border-t border-gray-200 bg-white">
+          <div class="p-4 border-t border-border bg-card">
             <el-input
               v-model="chatInput"
               type="textarea"
@@ -1210,7 +1210,7 @@ onMounted(() => {
               @keydown.enter.exact.prevent="sendChatMessage"
             />
             <div class="flex justify-between items-center mt-3">
-              <span class="text-xs text-gray-400">💡 提示：将存入 DIFY_DATASET_DEEP_ID</span>
+              <span class="text-xs text-secondary">💡 提示：将存入 DIFY_DATASET_DEEP_ID</span>
               <el-button type="primary" :disabled="!chatInput.trim() || chatLoading" @click="sendChatMessage">
                 发送 <el-icon class="ml-1"><Position /></el-icon>
               </el-button>

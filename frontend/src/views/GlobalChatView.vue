@@ -1,11 +1,11 @@
 <template>
-  <div class="h-full w-full bg-white relative flex overflow-hidden">
+  <div class="h-full w-full bg-card relative flex overflow-hidden">
     <!-- Sidebar -->
     <div 
-      class="w-64 bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-300 shrink-0"
+      class="w-64 bg-app border-r border-border flex flex-col transition-all duration-300 shrink-0"
       :class="isSidebarOpen ? 'ml-0' : '-ml-64'"
     >
-      <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white">
+      <div class="p-4 border-b border-border flex justify-between items-center bg-card">
         <el-button type="primary" plain class="w-full flex justify-start items-center gap-2" @click="startNewChat">
           <el-icon><Plus /></el-icon> 新的对话
         </el-button>
@@ -14,7 +14,7 @@
       <div class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-6">
         <!-- 收藏的对话 -->
         <div v-if="favoriteConversations.length > 0">
-          <div class="text-xs font-bold text-gray-400 mb-2 px-2 flex items-center gap-1">
+          <div class="text-xs font-bold text-secondary mb-2 px-2 flex items-center gap-1">
             <el-icon><StarFilled /></el-icon> 收藏
           </div>
           <div class="space-y-1">
@@ -22,7 +22,7 @@
               v-for="conv in favoriteConversations" 
               :key="conv.id"
               class="group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors"
-              :class="currentConvId === conv.id ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-200'"
+              :class="currentConvId === conv.id ? 'bg-indigo-100 text-indigo-700' : 'text-secondary hover:bg-gray-200'"
               @click="loadConversation(conv.id)"
             >
               <div class="flex items-center gap-2 overflow-hidden flex-1">
@@ -42,7 +42,7 @@
               <div class="hidden group-hover:flex items-center gap-1 shrink-0 ml-2" v-if="editingConvId !== conv.id">
                 <el-icon class="hover:text-yellow-500" @click.stop="toggleFavorite(conv)"><StarFilled /></el-icon>
                 <el-dropdown trigger="click" @command="(cmd: string) => handleConvCommand(cmd, conv)" @click.stop>
-                  <el-icon class="hover:text-gray-800 outline-none"><MoreFilled /></el-icon>
+                  <el-icon class="hover:text-primary outline-none"><MoreFilled /></el-icon>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="edit"><el-icon><EditPen /></el-icon> 重命名</el-dropdown-item>
@@ -57,7 +57,7 @@
 
         <!-- 最近的对话 -->
         <div>
-          <div class="text-xs font-bold text-gray-400 mb-2 px-2 flex items-center gap-1">
+          <div class="text-xs font-bold text-secondary mb-2 px-2 flex items-center gap-1">
             <el-icon><Clock /></el-icon> 最近
           </div>
           <div class="space-y-1">
@@ -65,7 +65,7 @@
               v-for="conv in recentConversations" 
               :key="conv.id"
               class="group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors"
-              :class="currentConvId === conv.id ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-200'"
+              :class="currentConvId === conv.id ? 'bg-indigo-100 text-indigo-700' : 'text-secondary hover:bg-gray-200'"
               @click="loadConversation(conv.id)"
             >
               <div class="flex items-center gap-2 overflow-hidden flex-1">
@@ -85,7 +85,7 @@
               <div class="hidden group-hover:flex items-center gap-1 shrink-0 ml-2" v-if="editingConvId !== conv.id">
                 <el-icon class="hover:text-yellow-500" @click.stop="toggleFavorite(conv)"><Star /></el-icon>
                 <el-dropdown trigger="click" @command="(cmd: string) => handleConvCommand(cmd, conv)" @click.stop>
-                  <el-icon class="hover:text-gray-800 outline-none"><MoreFilled /></el-icon>
+                  <el-icon class="hover:text-primary outline-none"><MoreFilled /></el-icon>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <el-dropdown-item command="edit"><el-icon><EditPen /></el-icon> 重命名</el-dropdown-item>
@@ -101,21 +101,21 @@
     </div>
 
     <!-- Main Chat Area -->
-    <div class="flex-1 flex flex-col h-full bg-white relative min-w-0">
+    <div class="flex-1 flex flex-col h-full bg-card relative min-w-0">
       <!-- Header -->
-      <div class="w-full h-16 shrink-0 flex items-center justify-between px-6 border-b border-gray-100 bg-white/80 backdrop-blur-sm z-10 sticky top-0">
+      <div class="w-full h-16 shrink-0 flex items-center justify-between px-6 border-b border-border bg-card/80 backdrop-blur-sm z-10 sticky top-0">
         <div class="flex items-center gap-3">
-          <el-button text circle @click="isSidebarOpen = !isSidebarOpen" class="!text-gray-500 hover:!bg-gray-100">
+          <el-button text circle @click="isSidebarOpen = !isSidebarOpen" class="!text-secondary hover:!bg-gray-100">
             <el-icon size="20"><Expand v-if="!isSidebarOpen" /><Fold v-else /></el-icon>
           </el-button>
           <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md">
             <el-icon size="16"><ChatDotRound /></el-icon>
           </div>
           <div>
-            <h2 class="text-base font-bold text-gray-800 leading-tight">
+            <h2 class="text-base font-bold text-primary leading-tight">
               {{ currentConvTitle || 'Insight 智能助理' }}
             </h2>
-            <p class="text-xs text-gray-500" v-if="!currentConvId">连接所有原文、笔记与闪念胶囊的全局知识库</p>
+            <p class="text-xs text-secondary" v-if="!currentConvId">连接所有原文、笔记与闪念胶囊的全局知识库</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -130,9 +130,9 @@
       <!-- Chat Message List -->
       <div class="flex-1 w-full overflow-y-auto p-6 custom-scrollbar" ref="chatScrollRef">
         <div class="max-w-4xl mx-auto space-y-6 pb-6">
-          <div v-if="messages.length === 0" class="h-[60vh] flex flex-col items-center justify-center text-gray-400">
+          <div v-if="messages.length === 0" class="h-[60vh] flex flex-col items-center justify-center text-secondary">
             <el-icon size="48" class="mb-4 text-indigo-100"><ChatLineSquare /></el-icon>
-            <p class="text-lg font-medium text-gray-500">准备好探索你的知识库了吗？</p>
+            <p class="text-lg font-medium text-secondary">准备好探索你的知识库了吗？</p>
             <p class="text-sm mt-2">试着问我："最近我读过哪些关于大模型的论文？" 或 "总结一下我存的闪念胶囊"</p>
           </div>
 
@@ -147,7 +147,7 @@
             <div class="flex flex-col gap-1 max-w-[80%]" :class="{'items-end': msg.role === 'user'}">
               
               <!-- Editing Mode -->
-              <div v-if="editingMsgIndex === index && msg.role === 'user'" class="w-full min-w-[300px] sm:min-w-[400px] bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+              <div v-if="editingMsgIndex === index && msg.role === 'user'" class="w-full min-w-[300px] sm:min-w-[400px] bg-card border border-border rounded-xl p-4 shadow-sm">
                 <el-input
                   v-model="editMsgContent"
                   type="textarea"
@@ -163,12 +163,12 @@
               
               <!-- Normal Bubble -->
               <div v-else class="rounded-2xl px-5 py-3 shadow-sm relative"
-                   :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-gray-50 border border-gray-100 text-gray-800 rounded-tl-sm'">
+                   :class="msg.role === 'user' ? 'bg-blue-500 text-white rounded-tr-sm' : 'bg-app border border-border text-primary rounded-tl-sm'">
                 <div class="prose prose-sm max-w-none" :class="{'prose-invert': msg.role === 'user'}" v-html="renderMarkdown(msg.content)"></div>
                 
                 <!-- Citations / References (If any) -->
-                <div v-if="msg.role === 'assistant' && msg.citations && msg.citations.length > 0" class="mt-3 pt-3 border-t border-gray-200/50">
-                  <div class="text-xs text-gray-500 font-medium mb-2 flex items-center gap-1">
+                <div v-if="msg.role === 'assistant' && msg.citations && msg.citations.length > 0" class="mt-3 pt-3 border-t border-border/50">
+                  <div class="text-xs text-secondary font-medium mb-2 flex items-center gap-1">
                     <el-icon><Link /></el-icon> 引用来源：
                   </div>
                   <div class="flex flex-wrap gap-2">
@@ -180,7 +180,7 @@
               </div>
               
               <!-- Action Buttons -->
-              <div v-if="editingMsgIndex !== index" class="flex items-center gap-2 mt-1 text-gray-400 transition-opacity" :class="{'flex-row-reverse': msg.role === 'user', 'opacity-50': isTyping}">
+              <div v-if="editingMsgIndex !== index" class="flex items-center gap-2 mt-1 text-secondary transition-opacity" :class="{'flex-row-reverse': msg.role === 'user', 'opacity-50': isTyping}">
                 <el-tooltip v-if="msg.role === 'user' && !isTyping" content="编辑并重发" placement="bottom">
                   <el-button text circle size="small" @click="startEditMsg(index)" class="hover:text-indigo-600">
                     <el-icon><EditPen /></el-icon>
@@ -200,7 +200,7 @@
             <div class="w-8 h-8 shrink-0 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mt-1">
               <el-icon class="is-loading"><Loading /></el-icon>
             </div>
-            <div class="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-sm px-5 py-3 text-gray-500 text-sm flex flex-col gap-3 shadow-sm items-start">
+            <div class="bg-app border border-border rounded-2xl rounded-tl-sm px-5 py-3 text-secondary text-sm flex flex-col gap-3 shadow-sm items-start">
               <div class="flex items-center gap-2">正在思考检索知识库...</div>
               <el-button size="small" type="danger" plain @click="stopGeneration">
                 <el-icon class="mr-1"><VideoPause /></el-icon> 停止生成
@@ -211,15 +211,15 @@
       </div>
 
       <!-- Input Area -->
-      <div class="w-full shrink-0 bg-white p-4 pt-0 relative">
-        <div class="max-w-4xl mx-auto relative shadow-sm rounded-xl border border-gray-200 bg-white overflow-hidden transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
+      <div class="w-full shrink-0 bg-card p-4 pt-0 relative">
+        <div class="max-w-4xl mx-auto relative shadow-sm rounded-xl border border-border bg-card overflow-hidden transition-shadow focus-within:shadow-md focus-within:border-indigo-300">
           <!-- Uploaded Files Preview -->
-          <div v-if="uploadedFiles.length > 0" class="flex flex-wrap gap-2 p-3 bg-gray-50 border-b border-gray-100">
-            <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center gap-1 bg-white border border-gray-200 rounded-md px-2 py-1 text-xs text-gray-600 shadow-sm relative group">
+          <div v-if="uploadedFiles.length > 0" class="flex flex-wrap gap-2 p-3 bg-app border-b border-border">
+            <div v-for="(f, idx) in uploadedFiles" :key="idx" class="flex items-center gap-1 bg-card border border-border rounded-md px-2 py-1 text-xs text-secondary shadow-sm relative group">
               <el-icon v-if="f.type === 'image'" class="text-blue-500"><Picture /></el-icon>
               <el-icon v-else class="text-orange-500"><Document /></el-icon>
               <span class="max-w-[100px] truncate" :title="f.name">{{ f.name }}</span>
-              <el-icon class="cursor-pointer text-gray-400 hover:text-red-500 ml-1" @click="removeFile(idx)"><Close /></el-icon>
+              <el-icon class="cursor-pointer text-secondary hover:text-red-500 ml-1" @click="removeFile(idx)"><Close /></el-icon>
             </div>
           </div>
 
@@ -243,7 +243,7 @@
               :before-upload="beforeUpload"
               name="file"
             >
-              <el-button text circle size="small" :loading="isUploading" class="!text-gray-400 hover:!text-indigo-500">
+              <el-button text circle size="small" :loading="isUploading" class="!text-secondary hover:!text-indigo-500">
                 <el-icon size="18"><Paperclip /></el-icon>
               </el-button>
             </el-upload>
@@ -260,7 +260,7 @@
             </el-button>
           </div>
         </div>
-        <div class="text-center mt-2 text-[10px] text-gray-400">
+        <div class="text-center mt-2 text-[10px] text-secondary">
           Insight Assistant may produce inaccurate information about people, places, or facts.
         </div>
       </div>

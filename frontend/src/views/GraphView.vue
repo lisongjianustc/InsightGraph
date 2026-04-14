@@ -1,15 +1,15 @@
 <template>
-  <div class="h-full w-full bg-white relative flex flex-col">
+  <div class="h-full w-full bg-card relative flex flex-col">
     <!-- Header -->
     <div class="absolute top-4 left-4 z-10">
-      <el-card shadow="hover" class="rounded-xl bg-white/90 backdrop-blur-sm border-0">
+      <el-card shadow="hover" class="rounded-xl bg-card/90 backdrop-blur-sm border-0">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="text-xl font-bold text-gray-800 mb-1 flex items-center gap-2">
+            <h2 class="text-xl font-bold text-primary mb-1 flex items-center gap-2">
               <el-icon class="text-blue-500"><Connection /></el-icon>
               知识图谱网络
             </h2>
-            <p class="text-xs text-gray-500">连接文章、胶囊和核心实体标签</p>
+            <p class="text-xs text-secondary">连接文章、胶囊和核心实体标签</p>
           </div>
           <div class="flex flex-col gap-2">
             <el-button type="primary" size="small" plain @click="fetchGraphData" :loading="loading">
@@ -25,11 +25,11 @@
 
     <!-- 图例 -->
     <div class="absolute bottom-4 left-4 z-10">
-      <el-card shadow="hover" class="rounded-xl bg-white/90 backdrop-blur-sm border-0">
+      <el-card shadow="hover" class="rounded-xl bg-card/90 backdrop-blur-sm border-0">
         <div class="text-sm font-bold text-gray-700 mb-2">节点类型</div>
         <div class="flex flex-col gap-2 text-xs">
           <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#ef4444]"></span> 实体概念 (Tag)</div>
-          <div class="text-gray-400 mt-1 italic">（点击概念展开相关文献与胶囊）</div>
+          <div class="text-secondary mt-1 italic">（点击概念展开相关文献与胶囊）</div>
         </div>
       </el-card>
     </div>
@@ -69,25 +69,25 @@
           </div>
         </div>
 
-        <div class="bg-gray-50 p-4 rounded-lg">
+        <div class="bg-app p-4 rounded-lg">
           <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
             <el-icon><Connection /></el-icon> 相关文献 / 胶囊 ({{ selectedNode.docs?.length || 0 }})
           </h3>
           <div v-if="selectedNode.docs?.length > 0" class="space-y-3">
             <div v-for="(doc, index) in selectedNode.docs" :key="index" 
-                 class="bg-white p-3 rounded border border-gray-200 shadow-sm transition-colors"
+                 class="bg-card p-3 rounded border border-border shadow-sm transition-colors"
                  :class="{'hover:border-indigo-300 cursor-pointer': doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note'}"
                  @click="(doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note') ? openDoc(doc) : null">
               <div class="flex items-start justify-between gap-2">
-                <span class="text-sm font-medium text-gray-800 line-clamp-2 leading-snug transition-colors" :class="{'hover:text-indigo-600': doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note'}">{{ doc.name }}</span>
+                <span class="text-sm font-medium text-primary line-clamp-2 leading-snug transition-colors" :class="{'hover:text-indigo-600': doc.type === 'skim' || doc.type === 'deep' || doc.type === 'daily_note'}">{{ doc.name }}</span>
                 <el-tag :type="getTagType(doc.type)" size="small" class="shrink-0">{{ doc.type.toUpperCase() }}</el-tag>
               </div>
-              <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-gray-500 line-clamp-3 bg-gray-50 p-2 rounded cursor-pointer hover:bg-gray-100 transition-colors" @click="openDoc(doc)">
+              <div v-if="doc.type === 'capsule'" class="mt-2 text-xs text-secondary line-clamp-3 bg-app p-2 rounded cursor-pointer hover:bg-gray-100 transition-colors" @click="openDoc(doc)">
                 {{ doc.content }}
               </div>
               
               <!-- 胶囊/原文类型的操作栏 -->
-              <div v-if="doc.type === 'capsule' || doc.type === 'original'" class="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+              <div v-if="doc.type === 'capsule' || doc.type === 'original'" class="mt-3 flex flex-wrap gap-2 pt-2 border-t border-border">
                 <template v-if="doc.type === 'original'">
                   <el-button v-if="doc.url" size="small" text bg type="primary" @click="openDoc(doc, 'url')">
                     <el-icon class="mr-1"><Link /></el-icon>查看来源网页
@@ -121,7 +121,7 @@
       class="knowledge-dialog"
     >
       <div v-if="knowledgeDialogData" class="knowledge-card">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">{{ knowledgeDialogData.name }}</h2>
+        <h2 class="text-2xl font-bold text-primary mb-6 border-b pb-4">{{ knowledgeDialogData.name }}</h2>
         <div class="prose max-w-none prose-lg text-gray-700 leading-relaxed bg-orange-50/30 p-8 rounded-xl border border-orange-100 shadow-inner whitespace-pre-wrap" v-html="renderMarkdown(knowledgeDialogData.content)">
         </div>
       </div>
