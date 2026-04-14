@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document, Loading } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document, Loading, Link, Edit, Switch, Check } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 // @ts-ignore
@@ -245,6 +245,13 @@ watch(content, (newVal, oldVal) => {
   if (isSaving.value) return // 阻止因为自身格式化导致循环保存
   if (newVal === oldVal) return
   
+  // 检测是否输入了 (( 触发块级引用
+  if (newVal.endsWith('((')) {
+    showBlockRefDialog.value = true
+    blockRefSearch.value = ''
+    searchBlockRefs()
+  }
+
   if (saveTimeout.value) clearTimeout(saveTimeout.value)
   saveTimeout.value = window.setTimeout(() => {
     saveNote()
@@ -331,6 +338,49 @@ const autoCategorize = async () => {
   } finally {
     isCategorizing.value = false
   }
+}
+
+// 块级引用逻辑 (Block-level Reference)
+const showBlockRefDialog = ref(false)
+const blockRefSearch = ref('')
+const blockRefResults = ref<any[]>([])
+const loadingBlockRefs = ref(false)
+
+const searchBlockRefs = async () => {
+  loadingBlockRefs.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/capsules`, {
+      params: { search: blockRefSearch.value, limit: 15 }
+    })
+    blockRefResults.value = res.data.items || []
+  } catch (e) {
+    console.error('Search block refs failed', e)
+  } finally {
+    loadingBlockRefs.value = false
+  }
+}
+
+const insertBlockRef = (capsule: any) => {
+  // 替换掉最后输入的 ((
+  const lastIndex = content.value.lastIndexOf('((')
+  let baseContent = content.value
+  let afterContent = ''
+  if (lastIndex !== -1) {
+    baseContent = content.value.substring(0, lastIndex)
+    afterContent = content.value.substring(lastIndex + 2)
+  }
+  
+  // 如果引用的本身就是高亮块（自带了 > 和 来源），就不用再套一层引用块了
+  let refText = ''
+  if (capsule.content.includes('摘自文献') || capsule.content.includes('摘自：')) {
+    refText = `\n${capsule.content}\n`
+  } else {
+    refText = `\n> ${capsule.content}\n> — 引用自 [[capsule:${capsule.id}]]\n`
+  }
+  
+  content.value = baseContent + refText + afterContent
+  showBlockRefDialog.value = false
+  triggerSave()
 }
 
 const handleCategoryChange = (val: string) => {
@@ -701,6 +751,43 @@ const triggerAIRewrite = async () => {
             <el-button @click="showAIPanel = false" class="w-full !ml-0" size="small">关闭</el-button>
           </div>
         </div>
+        
+        <!-- 块级引用搜索框 (Block-level Reference) -->
+        <el-dialog v-model="showBlockRefDialog" title="插入高亮胶囊引用" width="500px" top="10vh" append-to-body :show-close="false" class="rounded-xl overflow-hidden shadow-2xl">
+          <div class="space-y-4">
+            <el-input
+              v-model="blockRefSearch"
+              placeholder="搜索你想引用的高亮块或胶囊内容..."
+              :prefix-icon="Search"
+              clearable
+              autofocus
+              @input="searchBlockRefs"
+            />
+            
+            <div class="max-h-[400px] overflow-y-auto space-y-2 custom-scrollbar">
+              <div v-if="loadingBlockRefs" class="py-8 flex justify-center">
+                <el-icon class="is-loading text-gray-400 text-2xl"><Loading /></el-icon>
+              </div>
+              <div v-else-if="blockRefResults.length === 0" class="py-8 text-center text-gray-400 text-sm">
+                没有找到匹配的块级引用
+              </div>
+              <div 
+                v-else
+                v-for="cap in blockRefResults" 
+                :key="cap.id"
+                class="p-3 border border-gray-100 rounded-lg hover:bg-indigo-50 hover:border-indigo-200 cursor-pointer transition-colors"
+                @click="insertBlockRef(cap)"
+              >
+                <div v-if="cap.title" class="text-xs font-bold text-gray-800 mb-1 line-clamp-1"><el-icon class="text-indigo-500 mr-1"><Link /></el-icon>{{ cap.title }}</div>
+                <div class="text-sm text-gray-600 line-clamp-3 leading-relaxed">{{ cap.content }}</div>
+                <div class="text-[10px] text-gray-400 mt-2 flex justify-between">
+                  <span>{{ new Date(cap.created_at).toLocaleDateString() }}</span>
+                  <span v-if="cap.content.includes('摘自文献') || cap.content.includes('摘自：')" class="text-indigo-400 font-medium">高亮片段</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </el-dialog>
       </div>
     </div>
 

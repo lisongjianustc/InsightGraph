@@ -204,7 +204,7 @@
 
           <!-- 解析文本模式 -->
           <div v-else class="flex-1 overflow-auto custom-scrollbar">
-            <div class="max-w-4xl mx-auto px-8 py-10">
+            <div class="max-w-4xl mx-auto px-8 py-10" @mouseup="handleTextSelection">
               <h1 v-if="editingCapsule.title" class="text-4xl font-bold mb-8 text-gray-900 border-b pb-6">{{ editingCapsule.title }}</h1>
               <div class="markdown-body text-lg leading-loose">
                 <Viewer
@@ -218,6 +218,16 @@
             </div>
           </div>
         </div>
+      </div>
+      
+      <!-- 高亮悬浮菜单 -->
+      <div 
+        v-if="showHighlightMenu" 
+        :style="{ top: highlightMenuPos.top + 'px', left: highlightMenuPos.left + 'px' }" 
+        class="highlight-menu fixed z-50 bg-gray-800 text-white px-3 py-2 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm font-medium"
+        @mousedown.prevent="extractHighlight"
+      >
+        <el-icon><MagicStick /></el-icon> 提取为高亮胶囊
       </div>
     </el-drawer>
   </div>
@@ -233,7 +243,7 @@ try {
     ipcRenderer = window.require('electron').ipcRenderer
   }
 } catch (e) {}
-import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading, Document, DocumentCopy } from '@element-plus/icons-vue'
+import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading, Document, DocumentCopy, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 import { marked } from 'marked'
@@ -290,6 +300,53 @@ const editingMode = ref(false)
 const capsuleViewMode = ref('text') // 'text' or 'file'
 const isSavingEdit = ref(false)
 const editingCapsule = ref<any>({})
+
+// 高亮提取闪念胶囊
+const showHighlightMenu = ref(false)
+const highlightMenuPos = ref({ top: 0, left: 0 })
+const selectedText = ref('')
+
+const handleTextSelection = () => {
+  if (editingMode.value) return // 编辑模式下不弹悬浮窗
+  const selection = window.getSelection()
+  if (selection && selection.toString().trim().length > 0) {
+    const text = selection.toString().trim()
+    if (text.length > 5) {
+      selectedText.value = text
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      highlightMenuPos.value = {
+        top: rect.top - 45,
+        left: rect.left + (rect.width / 2) - 60
+      }
+      showHighlightMenu.value = true
+    } else {
+      showHighlightMenu.value = false
+    }
+  } else {
+    showHighlightMenu.value = false
+  }
+}
+
+const extractHighlight = async () => {
+  if (!selectedText.value || !editingCapsule.value) return
+  try {
+    const sourceLink = `[《${editingCapsule.value.title || '闪念胶囊'}》](/capsules)`
+    const content = `> ${selectedText.value}\n> \n> — 摘自：${sourceLink}`
+    
+    await axios.post(`${API_BASE}/capsules`, {
+      content: content,
+      visibility: 'private'
+    })
+    
+    ElMessage.success('✨ 已成功提取为高亮胶囊！')
+    showHighlightMenu.value = false
+    window.getSelection()?.removeAllRanges()
+    fetchCapsules() // 刷新列表
+  } catch (error) {
+    ElMessage.error('提取高亮胶囊失败')
+  }
+}
 
 const getFullUrl = (path: string) => {
   if (!path) return ''
@@ -510,6 +567,18 @@ onMounted(() => {
       }
     })
   }
+
+  document.addEventListener('mousedown', (e) => {
+    const target = e.target as HTMLElement
+    if (target.closest('.highlight-menu')) return
+    
+    setTimeout(() => {
+      const selection = window.getSelection()
+      if (!selection || selection.toString().trim().length === 0) {
+        showHighlightMenu.value = false
+      }
+    }, 100)
+  })
 })
 
 onUnmounted(() => {

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled, Sunny } from '@element-plus/icons-vue'
+import { EditPen, Refresh, TopRight, Check, Download, Document, DocumentCopy, Reading, ChatDotRound, Position, Warning, FullScreen, DataLine, Close, ArrowUp, ArrowDown, Delete, DocumentAdd, MoreFilled, Sunny, MagicStick } from '@element-plus/icons-vue'
 // @ts-ignore
 import { Editor, Viewer } from '@bytemd/vue-next'
 // @ts-ignore
@@ -134,6 +134,52 @@ const deepLayoutMode = ref<'split' | 'full'>('split')
 const isChatFloatingVisible = ref(false)
 const readingViewType = ref<string>('translation')
 const isHeaderCollapsed = ref(false)
+
+// 高亮提取闪念胶囊
+const showHighlightMenu = ref(false)
+const highlightMenuPos = ref({ top: 0, left: 0 })
+const selectedText = ref('')
+
+const handleTextSelection = () => {
+  const selection = window.getSelection()
+  if (selection && selection.toString().trim().length > 0) {
+    const text = selection.toString().trim()
+    // 只在选中文本较长时才显示，避免误触
+    if (text.length > 5) {
+      selectedText.value = text
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      highlightMenuPos.value = {
+        top: rect.top - 45,
+        left: rect.left + (rect.width / 2) - 60
+      }
+      showHighlightMenu.value = true
+    } else {
+      showHighlightMenu.value = false
+    }
+  } else {
+    showHighlightMenu.value = false
+  }
+}
+
+const extractHighlight = async () => {
+  if (!selectedText.value || !currentDeepFeed.value) return
+  try {
+    const sourceLink = currentDeepFeed.value.url ? `[《${currentDeepFeed.value.title}》](${currentDeepFeed.value.url})` : `《${currentDeepFeed.value.title}》`
+    const content = `> ${selectedText.value}\n> \n> — 摘自文献：${sourceLink}`
+    
+    await axios.post(`${API_BASE}/capsules`, {
+      content: content,
+      visibility: 'private'
+    })
+    
+    ElMessage.success('✨ 已成功提取为闪念胶囊！')
+    showHighlightMenu.value = false
+    window.getSelection()?.removeAllRanges()
+  } catch (error) {
+    ElMessage.error('提取胶囊失败')
+  }
+}
 
 interface ChatMessage {
   id: string
@@ -627,10 +673,24 @@ const saveChatMsgToKb = async (msg: ChatMessage) => {
   }
 }
 
+// 隐藏菜单
 onMounted(() => {
   fetchSources()
   fetchFeeds()
   fetchDailyReview()
+  
+  document.addEventListener('mousedown', (e) => {
+    // 如果点击的是菜单本身，不隐藏
+    const target = e.target as HTMLElement
+    if (target.closest('.highlight-menu')) return
+    
+    setTimeout(() => {
+      const selection = window.getSelection()
+      if (!selection || selection.toString().trim().length === 0) {
+        showHighlightMenu.value = false
+      }
+    }, 100)
+  })
 })
 </script>
 
@@ -1003,12 +1063,12 @@ onMounted(() => {
                   :src="`http://localhost:8000${translatedPdfUrlMono}`" 
                   class="w-full min-h-[600px] flex-1 border-0 rounded-md"
                 ></iframe>
-                <div v-else class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
+                <div v-else class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
                   {{ translatedContent || '正在翻译中...' }}
                 </div>
               </template>
               <template v-else>
-                <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]">
+                <div class="prose max-w-none text-gray-800 leading-relaxed whitespace-pre-wrap text-lg font-serif min-h-[200px]" @mouseup="handleTextSelection">
                   {{ currentDeepFeed?.full_text || currentDeepFeed?.content }}
                   <div v-if="!currentDeepFeed?.full_text && currentDeepFeed?.source === 'arxiv'" class="mt-4 p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm">
                     <el-icon><Warning /></el-icon> 当前展示的仅为网页摘要。系统正在后台尝试抓取并解析 PDF 全文，请稍后再试或切换到原版 PDF 视图。
@@ -1170,6 +1230,16 @@ onMounted(() => {
         </div>
 
       </div>
+      <!-- 高亮悬浮菜单 -->
+      <div 
+        v-if="showHighlightMenu" 
+        :style="{ top: highlightMenuPos.top + 'px', left: highlightMenuPos.left + 'px' }" 
+        class="highlight-menu fixed z-50 bg-gray-800 text-white px-3 py-2 rounded-lg shadow-lg cursor-pointer hover:bg-gray-700 transition-colors flex items-center gap-2 text-sm font-medium"
+        @mousedown.prevent="extractHighlight"
+      >
+        <el-icon><MagicStick /></el-icon> 提取为高亮胶囊
+      </div>
+
     </el-drawer>
   </div>
 </template>
