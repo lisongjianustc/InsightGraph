@@ -14,6 +14,8 @@ RUN apt-get update \
         libx11-xcb1 \
         gcc \
         libpq-dev \
+        libxml2-dev \
+        libxslt1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件

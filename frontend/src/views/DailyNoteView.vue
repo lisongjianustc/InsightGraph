@@ -31,11 +31,14 @@ const categoriesData = ref<any[]>([])
 
 // Reference drawer
 const showReferences = ref(true)
-const activeTab = ref('capsule')
+const activeTab = ref('recommend')
 const searchQuery = ref('')
 const recentCapsules = ref<any[]>([])
 const recentFeeds = ref<any[]>([])
+const recommendations = ref<any[]>([])
+const loadingRecommendations = ref(false)
 const searchTimeout = ref<number | null>(null)
+const recommendTimeout = ref<number | null>(null)
 
 // Multi-select for AI
 const selectedCapsuleIds = ref<number[]>([])
@@ -45,7 +48,39 @@ const selectedOriginalIds = ref<number[]>([])
 // AI Writer
 const showAIPanel = ref(false)
 const aiGenerating = ref(false)
-const aiFormat = ref('polish')
+const aiMode = ref('template') // 'template' | 'custom'
+const aiFormat = ref('polish') // corresponds to template_id
+const aiCustomPrompt = ref('') // optional additional instruction
+const showAdvanced = ref(false) // toggle for custom prompt in template mode
+
+const aiTemplateGroups = [
+  {
+    label: '写作',
+    options: [
+      { value: 'polish', label: '润色' },
+      { value: 'rewrite', label: '改写' },
+      { value: 'expand', label: '扩写' },
+      { value: 'shorten', label: '压缩' },
+      { value: 'blog', label: '博客' },
+      { value: 'card', label: '卡片' }
+    ]
+  },
+  {
+    label: '结构化',
+    options: [
+      { value: 'outline', label: '大纲' },
+      { value: 'keypoints', label: '要点' },
+      { value: 'action_items', label: '待办' }
+    ]
+  },
+  {
+    label: '知识管理',
+    options: [
+      { value: 'qa', label: '问答(Q&A)' },
+      { value: 'flashcards', label: '记忆卡片' }
+    ]
+  }
+]
 
 // Tree computing and Dnd
 const treeData = computed(() => {
@@ -187,6 +222,43 @@ const fetchRecentFeeds = async () => {
   }
 }
 
+const fetchRecommendations = async () => {
+  if (!content.value || content.value.trim().length < 5) {
+    recommendations.value = []
+    return
+  }
+  loadingRecommendations.value = true
+  try {
+    const res = await axios.post(`${API_BASE}/daily-notes/recommendations`, {
+      text: content.value.trim(),
+      top_k: 3
+    })
+    recommendations.value = res.data.items || []
+  } catch (e) {
+    console.error('Failed to fetch recommendations:', e)
+  } finally {
+    loadingRecommendations.value = false
+  }
+}
+
+watch(content, (newVal, oldVal) => {
+  if (isSaving.value) return // 阻止因为自身格式化导致循环保存
+  if (newVal === oldVal) return
+  
+  if (saveTimeout.value) clearTimeout(saveTimeout.value)
+  saveTimeout.value = window.setTimeout(() => {
+    saveNote()
+  }, 1500)
+
+  // 触发 AI Librarian 推荐
+  if (recommendTimeout.value) clearTimeout(recommendTimeout.value)
+  recommendTimeout.value = window.setTimeout(() => {
+    if (activeTab.value === 'recommend') {
+      fetchRecommendations()
+    }
+  }, 2000)
+})
+
 const handleSearch = () => {
   if (searchTimeout.value) {
     clearTimeout(searchTimeout.value)
@@ -194,19 +266,17 @@ const handleSearch = () => {
   searchTimeout.value = window.setTimeout(() => {
     if (activeTab.value === 'capsule') {
       fetchRecentCapsules()
-    } else {
+    } else if (activeTab.value === 'feed' || activeTab.value === 'original') {
       fetchRecentFeeds()
     }
   }, 500)
 }
 
-watch(activeTab, () => {
+watch(activeTab, (newVal) => {
   searchQuery.value = ''
-  if (activeTab.value === 'capsule') {
-    fetchRecentCapsules()
-  } else {
-    fetchRecentFeeds()
-  }
+  if (newVal === 'capsule') fetchRecentCapsules()
+  else if (newVal === 'feed' || newVal === 'original') fetchRecentFeeds()
+  else if (newVal === 'recommend') fetchRecommendations()
 })
 
 const saveNote = async () => {
@@ -349,15 +419,23 @@ const triggerAIRewrite = async () => {
     // Show an initial engaging message while waiting for TTFT (Time To First Token)
     content.value += '\n\n---\n**🧠 AI 正在深度阅读并构思文章框架，请稍候...**\n\n'
     
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE}/daily-notes/ai-rewrite`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         draft_content: content.value,
         reference_capsule_ids: Array.from(refCapsuleIds),
         reference_feed_ids: Array.from(refFeedIds),
         reference_original_ids: Array.from(refOriginalIds),
-        format_type: aiFormat.value
+        mode: aiMode.value,
+        template_id: aiFormat.value,
+        custom_prompt: aiCustomPrompt.value
       })
     })
 
@@ -561,18 +639,64 @@ const triggerAIRewrite = async () => {
         />
         
         <!-- AI 浮窗 -->
-        <div v-if="showAIPanel" class="absolute top-4 right-4 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50">
-          <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <el-icon class="text-purple-500"><MagicStick /></el-icon> AI 魔法棒
-          </h3>
-          <div class="space-y-3">
-            <el-radio-group v-model="aiFormat" class="w-full">
-              <el-radio-button label="polish" class="flex-1">润色</el-radio-button>
-              <el-radio-button label="card" class="flex-1">卡片</el-radio-button>
-              <el-radio-button label="blog" class="flex-1">博客</el-radio-button>
+        <div v-if="showAIPanel" class="absolute top-4 right-4 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 flex flex-col max-h-[80vh]">
+          <h3 class="font-semibold text-gray-800 mb-3 flex items-center justify-between">
+            <span class="flex items-center gap-2"><el-icon class="text-purple-500"><MagicStick /></el-icon> AI 魔法棒</span>
+            <el-radio-group v-model="aiMode" size="small">
+              <el-radio-button label="template">模板</el-radio-button>
+              <el-radio-button label="custom">自定义</el-radio-button>
             </el-radio-group>
-            <el-button @click="triggerAIRewrite" type="primary" class="w-full" :loading="aiGenerating">
-              {{ aiGenerating ? '正在生成...' : '开始魔法重写' }}
+          </h3>
+          
+          <div class="flex-1 overflow-y-auto space-y-4 pr-1">
+            <template v-if="aiMode === 'template'">
+              <div v-for="(group, idx) in aiTemplateGroups" :key="idx" class="space-y-1">
+                <div class="text-xs text-gray-500 font-medium">{{ group.label }}</div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div 
+                    v-for="opt in group.options" 
+                    :key="opt.value"
+                    @click="aiFormat = opt.value"
+                    class="cursor-pointer border rounded text-center py-1.5 text-xs transition-colors"
+                    :class="aiFormat === opt.value ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'"
+                  >
+                    {{ opt.label }}
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <div class="flex items-center justify-between text-xs text-gray-500 cursor-pointer py-1" @click="showAdvanced = !showAdvanced">
+                  <span>高级指令 (可选)</span>
+                  <span>{{ showAdvanced ? '收起' : '展开' }}</span>
+                </div>
+                <el-input
+                  v-show="showAdvanced"
+                  v-model="aiCustomPrompt"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="附加要求：例如'用更口语化的语气'..."
+                  class="mt-1 text-xs"
+                />
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="space-y-2">
+                <div class="text-xs text-gray-500 font-medium">自定义提示词</div>
+                <el-input
+                  v-model="aiCustomPrompt"
+                  type="textarea"
+                  :rows="6"
+                  placeholder="输入你的具体写作要求：例如'把草稿提炼成一份带重点和行动项的周报，重点要突出'..."
+                />
+              </div>
+            </template>
+          </div>
+
+          <div class="pt-4 mt-2 border-t border-gray-100 space-y-2 shrink-0">
+            <el-button @click="triggerAIRewrite" type="primary" class="w-full" :loading="aiGenerating" :disabled="aiMode === 'custom' && !aiCustomPrompt.trim()">
+              {{ aiGenerating ? '正在生成...' : '开始魔法生成' }}
             </el-button>
             <el-button @click="showAIPanel = false" class="w-full !ml-0" size="small">关闭</el-button>
           </div>
@@ -585,6 +709,7 @@ const triggerAIRewrite = async () => {
       <div class="p-4 border-b border-gray-200">
         <h3 class="font-semibold text-gray-700 mb-3">知识素材库</h3>
         <el-input
+          v-if="activeTab !== 'recommend'"
           v-model="searchQuery"
           placeholder="搜索素材..."
           :prefix-icon="Search"
@@ -592,15 +717,38 @@ const triggerAIRewrite = async () => {
           @input="handleSearch"
           class="mb-3"
         />
-        <el-radio-group v-model="activeTab" size="small" class="w-full">
+        <el-radio-group v-model="activeTab" size="small" class="w-full flex-wrap gap-y-1">
+          <el-radio-button label="recommend" class="flex-1">AI 推荐</el-radio-button>
           <el-radio-button label="capsule" class="flex-1">闪念胶囊</el-radio-button>
           <el-radio-button label="feed" class="flex-1">文献摘要</el-radio-button>
           <el-radio-button label="original" class="flex-1">文献原文</el-radio-button>
         </el-radio-group>
-        <p class="text-xs text-gray-500 mt-3">拖拽或勾选卡片，召唤 AI 写作</p>
+        <p v-if="activeTab === 'recommend'" class="text-xs text-indigo-500 mt-3 font-medium">✨ 根据您当前的书写内容，实时推荐可能相关的知识素材</p>
+        <p v-else class="text-xs text-gray-500 mt-3">拖拽或勾选卡片，召唤 AI 写作</p>
       </div>
       
       <div class="flex-1 overflow-y-auto p-4 space-y-3 pb-20">
+        <!-- AI 推荐列表 -->
+        <template v-if="activeTab === 'recommend'">
+          <div v-if="loadingRecommendations" class="text-sm text-gray-400 text-center py-4 flex items-center justify-center gap-2">
+            <el-icon class="is-loading"><Loading /></el-icon> 正在检索相关记忆...
+          </div>
+          <div v-else-if="recommendations.length === 0" class="text-sm text-gray-400 text-center py-4">
+            {{ content.length < 5 ? '多写一点内容，AI 将为您推荐相关素材' : '未找到强相关的历史素材' }}
+          </div>
+          <div 
+            v-for="(item, index) in recommendations" 
+            :key="'rec-'+index"
+            class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 shadow-sm transition-all flex items-start gap-2"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-semibold text-indigo-700 truncate mb-1">{{ item.title }}</div>
+              <div class="text-xs text-gray-600 line-clamp-4 leading-relaxed">{{ item.content }}</div>
+              <div class="text-[10px] text-indigo-400 mt-2 font-mono">相似度: {{ (item.score * 100).toFixed(1) }}%</div>
+            </div>
+          </div>
+        </template>
+
         <!-- 胶囊列表 -->
         <template v-if="activeTab === 'capsule'">
           <div v-if="recentCapsules.length === 0" class="text-sm text-gray-400 text-center py-4">无匹配胶囊</div>

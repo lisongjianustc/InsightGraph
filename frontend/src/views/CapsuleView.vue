@@ -17,6 +17,7 @@
             class="w-full"
             drag
             :action="uploadUrl"
+            :headers="authHeaders"
             :show-file-list="false"
             :on-success="handleUploadSuccess"
             :on-error="handleUploadError"
@@ -223,8 +224,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
+let ipcRenderer: any = null
+try {
+  if (typeof window !== 'undefined' && window.require) {
+    ipcRenderer = window.require('electron').ipcRenderer
+  }
+} catch (e) {}
 import { Position, Collection, Refresh, DocumentAdd, Loading, Search, Delete, Edit, Reading, Document, DocumentCopy } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
@@ -267,6 +275,10 @@ const isSubmitting = ref(false)
 const isLoading = ref(false)
 const isUploading = ref(false)
 const capsules = ref<any[]>([])
+
+const authHeaders = {
+  Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+}
 const totalCapsules = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -490,7 +502,22 @@ const uploadImageFile = async (file: File) => {
 
 onMounted(() => {
   fetchCapsules()
+  
+  if (ipcRenderer) {
+    ipcRenderer.on('refresh-data', (_event: any, type: string) => {
+      if (type === 'capsules') {
+        fetchCapsules()
+      }
+    })
+  }
 })
+
+onUnmounted(() => {
+  if (ipcRenderer) {
+    ipcRenderer.removeAllListeners('refresh-data')
+  }
+})
+
 </script>
 
 <style scoped>

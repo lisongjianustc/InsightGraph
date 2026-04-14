@@ -27,19 +27,58 @@ class DifyService:
         # 获取全局问答应用 API Key
         self.global_chat_api_key = os.getenv("DIFY_GLOBAL_CHAT_API_KEY", "")
         
-    async def save_text_to_dataset(self, text_content: str, title: Optional[str] = None, kb_type: str = "default") -> Dict[str, Any]:
+    async def create_empty_dataset(self, username: str) -> str:
         """
-        将文本内容保存到 Dify 的知识库中
-        所有的知识库共享同一个 API Key，但通过 dataset_id 区分存入哪个库
+        在 Dify 平台动态创建一个专属的私有大模型知识库（Dataset）。
+        """
+        if not self.api_key:
+            logger.error("DIFY_API_KEY is not set.")
+            raise Exception("DIFY_API_KEY is not set.")
+
+        endpoint = f"{self.api_url}/datasets"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "name": f"InsightGraph_{username}_KnowledgeBase",
+            "description": f"Personal knowledge base for {username}",
+            "indexing_technique": "high_quality",
+            "permission": "only_me",
+            "provider": "vendor"
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    timeout=30.0
+                )
+                response.raise_for_status()
+                result = response.json()
+                logger.info(f"Successfully created Dify dataset for user {username}: {result.get('id')}")
+                return result.get("id")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Dify create dataset API Error: {e.response.text}")
+            raise Exception(f"API Error: {e.response.status_code} {e.response.text}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Dify to create dataset: {str(e)}")
+            raise e
+
+    async def save_text_to_dataset(self, text_content: str, dataset_id: str, title: Optional[str] = None) -> Dict[str, Any]:
+        """
+        将文本内容保存到用户的 Dify 私有知识库中
         """
         if not self.api_key:
             logger.error("DIFY_API_KEY is not set.")
             return {"error": "API key missing"}
 
-        dataset_id = self._get_dataset_id(kb_type)
         if not dataset_id:
-            logger.error(f"Missing Dataset ID for kb_type: {kb_type}")
-            return {"error": f"Dataset ID missing for {kb_type}"}
+            logger.error(f"Missing Dataset ID")
+            return {"error": f"Dataset ID missing"}
 
         endpoint = f"{self.api_url}/datasets/{dataset_id}/document/create_by_text"
         
@@ -70,7 +109,7 @@ class DifyService:
                 response.raise_for_status()
                 result = response.json()
                 logger.info(f"Successfully saved text to dataset {dataset_id}")
-                return result
+                return result.get("document", {}).get("id")
         except httpx.ReadTimeout:
             logger.error(f"Dify save_text_to_dataset API ReadTimeout for {dataset_id}")
             return {"error": "Timeout", "details": "The request timed out. Indexing might still be processing in the background."}
@@ -81,6 +120,24 @@ class DifyService:
             import traceback
             logger.error(f"Failed to connect to Dify: {str(e)}\n{traceback.format_exc()}")
             return {"error": "Connection failed", "details": str(e)}
+
+    async def delete_document(self, dataset_id: str, document_id: str) -> bool:
+        """从 Dify 知识库中删除指定文档"""
+        if not self.api_key or not dataset_id or not document_id:
+            return False
+            
+        endpoint = f"{self.api_url}/datasets/{dataset_id}/documents/{document_id}"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.delete(endpoint, headers=headers, timeout=30.0)
+                res.raise_for_status()
+                return True
+        except Exception as e:
+            logger.error(f"Failed to delete document {document_id} from dataset {dataset_id}: {e}")
+            return False
 
     async def get_skim_reading_summary(self, content: str, title: str) -> str:
         """
@@ -286,6 +343,7 @@ class DifyService:
                 
         except httpx.HTTPStatusError as e:
             logger.error(f"Dify OCR API Error: {e.response.text}")
+            # 返回明确的错误字符串，主流程捕捉此特征
             return f"请求 Dify OCR 接口失败：HTTP {e.response.status_code}\n{e.response.text}"
         except Exception as e:
             logger.error(f"Failed to process image OCR via Dify: {str(e)}")
@@ -356,7 +414,93 @@ class DifyService:
             upload_res.raise_for_status()
             return upload_res.json()
 
-    async def global_chat_stream(self, query: str, conversation_id: str = "", files: list = None):
+    async def retrieve_chunks(self, query: str, dataset_id: str, top_k: int = 4) -> list[str]:
+        """
+        从指定知识库检索相关文本块（Chunks）
+        """
+        if not self.api_key or not dataset_id:
+            return []
+            
+        endpoint = f"{self.api_url}/datasets/{dataset_id}/retrieve"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "query": query,
+            "retrieval_model": {
+                "search_method": "semantic_search",
+                "top_k": top_k
+            }
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
+                res.raise_for_status()
+                data = res.json()
+                
+                # 提取返回结果中的分段文本
+                chunks = []
+                for record in data.get("records", []):
+                    content = record.get("segment", {}).get("content", "")
+                    if content:
+                        chunks.append(content)
+                return chunks
+        except Exception as e:
+            logger.error(f"Failed to retrieve chunks from dataset {dataset_id}: {e}")
+            return []
+
+    async def retrieve_recommendations(self, query: str, dataset_id: str, top_k: int = 4) -> list[dict]:
+        """
+        检索并返回带有结构化信息的推荐列表（AI Librarian 使用）
+        """
+        if not self.api_key or not dataset_id:
+            return []
+            
+        endpoint = f"{self.api_url}/datasets/{dataset_id}/retrieve"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "query": query,
+            "retrieval_model": {
+                "search_method": "semantic_search",
+                "top_k": top_k
+            }
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
+                res.raise_for_status()
+                data = res.json()
+                
+                recommendations = []
+                for record in data.get("records", []):
+                    segment = record.get("segment", {})
+                    doc = segment.get("document", {})
+                    content = segment.get("content", "")
+                    title = doc.get("name", "未命名内容")
+                    score = record.get("score", 0.0)
+                    
+                    if content:
+                        # 简短的预览
+                        preview = content[:100] + "..." if len(content) > 100 else content
+                        recommendations.append({
+                            "title": title,
+                            "content": preview,
+                            "score": score
+                        })
+                return recommendations
+        except Exception as e:
+            logger.error(f"Failed to retrieve recommendations from dataset {dataset_id}: {e}")
+            return []
+
+    async def global_chat_stream(self, query: str, conversation_id: str = "", files: list = None, user: str = "insight-graph-user", dataset_id: str = None):
         """
         调用 Dify 的流式输出（Streaming）实现全局知识库问答
         """
@@ -364,6 +508,16 @@ class DifyService:
             yield 'data: {"event": "message", "answer": "**【系统提示】** 未配置 `DIFY_GLOBAL_CHAT_API_KEY`，目前无法调用全局问答大模型。请在 `.env` 中配置。"}\n\n'
             yield 'data: {"event": "message_end"}\n\n'
             return
+
+        # 1. 尝试检索知识库上下文（如果有 dataset_id）
+        context_str = ""
+        if dataset_id:
+            chunks = await self.retrieve_chunks(query, dataset_id)
+            if chunks:
+                context_str = "\n\n---\n以下是可能与你的问题相关的知识库内容（请根据这些内容回答，如果没有关联则忽略）：\n" + "\n---\n".join(chunks)
+
+        # 2. 将检索到的上下文与原问题合并
+        augmented_query = query + context_str
 
         endpoint = f"{self.api_url}/chat-messages"
         headers = {
@@ -373,9 +527,9 @@ class DifyService:
         
         payload = {
             "inputs": {},
-            "query": query,
+            "query": augmented_query,
             "response_mode": "streaming",
-            "user": "insight-graph-user",
+            "user": user,
             "files": files or []
         }
         

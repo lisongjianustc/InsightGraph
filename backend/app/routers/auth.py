@@ -23,7 +23,11 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     id: int
     username: str
+    display_name: str | None = None
+    email: str | None = None
     dify_private_dataset_id: str | None
+    is_admin: bool = False
+    must_change_password: bool = False
 
     class Config:
         from_attributes = True
@@ -43,19 +47,19 @@ def login_access_token(
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
         "access_token": create_access_token(
-            user.id, expires_delta=access_token_expires
+            user.id, expires_delta=access_token_expires, token_version=user.token_version or 0
         ),
         "token_type": "bearer",
     }
 
 @router.post("/register", response_model=UserResponse)
-def register_user(
+async def register_user(
     *,
     db: Session = Depends(get_db),
     user_in: UserCreate,
 ) -> Any:
     """
-    Create new user.
+    Create new user and initialize their private Dify dataset.
     """
     user = db.query(User).filter(User.username == user_in.username).first()
     if user:
@@ -70,6 +74,22 @@ def register_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Call Dify to create an isolated dataset for this user
+    try:
+        from app.services.dify_service import dify_client
+        import logging
+        dataset_id = await dify_client.create_empty_dataset(user.username)
+        if dataset_id:
+            user.dify_private_dataset_id = dataset_id
+            db.commit()
+            db.refresh(user)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Failed to create Dify dataset for {user.username}: {e}")
+        # Note: We still return success for registration even if dataset creation fails,
+        # or we could implement retry logic later.
+
     return user
 
 @router.get("/me", response_model=UserResponse)

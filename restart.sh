@@ -24,22 +24,25 @@ if [ -f .frontend_pid ]; then
 fi
 
 # 尝试根据端口清理遗留进程 (Mac 特有)
-LSOF_PID=$(lsof -ti:5173)
+LSOF_PID=$(lsof -ti:5555)
 if [ ! -z "$LSOF_PID" ]; then
-    echo "强制清理占用 5173 端口的遗留进程: $LSOF_PID"
+    echo "强制清理占用 5555 端口的遗留进程: $LSOF_PID"
     kill -9 $LSOF_PID
 fi
 
+# 清理可能存在的 Electron 僵尸进程
+pkill -f "electron ."
+
 # 3. 重新启动前端服务
-echo "🚀 重新启动前端服务..."
+echo "🚀 重新启动前端与桌面端服务..."
 cd frontend
-npm run dev > ../frontend_dev.log 2>&1 &
+npm run electron:serve > ../frontend_dev.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > ../.frontend_pid
 
 echo "====================================="
-echo "✨ 重启完成！前端已重新挂载至后台。"
+echo "✨ 重启完成！桌面端应用正在拉起。"
 echo "👉 后端 API 地址: http://localhost:8000"
-echo "👉 前端访问地址: http://localhost:5173"
+echo "👉 前端访问地址: http://localhost:5555"
 echo "👉 n8n 工作流: http://localhost:5678"
 echo "====================================="

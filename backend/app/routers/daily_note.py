@@ -30,7 +30,10 @@ class AIRewriteRequest(BaseModel):
     reference_capsule_ids: List[int]
     reference_feed_ids: List[int]
     reference_original_ids: List[int]
-    format_type: str # 'card', 'blog', 'polish'
+    format_type: Optional[str] = None # 'card', 'blog', 'polish' (deprecated, kept for backward compatibility)
+    mode: Optional[str] = "template" # 'template' | 'custom'
+    template_id: Optional[str] = None
+    custom_prompt: Optional[str] = None
 
 class CategoryCreateRequest(BaseModel):
     name: str
@@ -45,6 +48,29 @@ class CategoryUpdateRequest(BaseModel):
 class AutoCategorizeRequest(BaseModel):
     content: str
     existing_categories: List[str]
+
+class RecommendationRequest(BaseModel):
+    text: str
+    top_k: Optional[int] = 3
+
+@router.post("/recommendations")
+async def get_recommendations(
+    req: RecommendationRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    AI Librarian: 根据当前编辑的文本，主动推荐关联的胶囊或文献
+    """
+    if not req.text or not req.text.strip():
+        return {"items": []}
+    
+    dataset_id = current_user.dify_private_dataset_id
+    if not dataset_id:
+        return {"items": []}
+        
+    dify_client = DifyService()
+    items = await dify_client.retrieve_recommendations(req.text, dataset_id, req.top_k)
+    return {"items": items}
 
 @router.get("/dates")
 def get_note_dates(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
@@ -207,7 +233,7 @@ def update_daily_note(note_date: date, payload: DailyNoteUpdate, background_task
             
     # Update Dify
     dify_client = DifyService()
-    dataset_id = os.getenv("DIFY_DATASET_CAPSULE_ID") # Reuse capsule dataset for simple integration, or define a new one. Let's reuse capsule dataset for now.
+    dataset_id = current_user.dify_private_dataset_id
     if dataset_id:
         if getattr(note, 'dify_document_id', None):
             background_tasks.add_task(dify_client.delete_document, dataset_id, note.dify_document_id)
@@ -267,15 +293,37 @@ async def ai_rewrite(request: AIRewriteRequest, db: Session = Depends(get_db)):
     context = "\n".join(reference_texts) if reference_texts else "无额外参考资料"
     
     # Prompt 设计
+    # 定义预设模板
+    TEMPLATES = {
+        "polish": "要求：修饰语法，统一行文风格，使其更加流畅和专业，保持原意不变。",
+        "rewrite": "要求：对草稿进行同义改写，更换表达方式，避免重复表达，但保留核心语义。",
+        "expand": "要求：对草稿进行扩写，补充合理的例子、论据或背景解释，使内容更丰富充实。",
+        "shorten": "要求：对草稿进行压缩，去除冗余和废话，使内容更短、更聚焦。",
+        "blog": "要求：生成带有引言、多级标题和总结的流畅博客文章。自然融合参考素材的内容。",
+        "card": "要求：提炼核心观点，输出为精炼的无序列表知识卡片，带上适当的 Emoji。",
+        "outline": "要求：提炼和生成多级标题大纲结构，条理清晰，不输出过多具体细节段落。",
+        "keypoints": "要求：从草稿和素材中提炼出 3-7 条核心要点，重点突出。",
+        "action_items": "要求：整理为行动清单（Action Items / TODO），如有必要可标注优先级。",
+        "qa": "要求：将内容转换为 Q/A（问答）形式，便于后续复盘和查阅。",
+        "flashcards": "要求：将内容提炼为 Anki 风格的记忆卡片（正面问题，背面答案）。"
+    }
+
     system_prompt = "你是一个专业的知识管理与写作助手。用户正在撰写每日笔记，请根据用户提供的【参考素材】和【原始草稿】，将其重构为高质量的指定格式内容。\n"
-    if request.format_type == 'blog':
-        system_prompt += "要求：生成带有引言、多级标题和总结的流畅博客文章。自然融合参考素材的内容。"
-    elif request.format_type == 'card':
-        system_prompt += "要求：提炼核心观点，输出为精炼的无序列表知识卡片，带上适当的 Emoji。"
-    elif request.format_type == 'polish':
-        system_prompt += "要求：修饰语法，统一行文风格，使其更加流畅和专业，保持原意不变。"
-    else:
-        system_prompt += "要求：按照用户的要求对文本进行优化。"
+    
+    # 解析模式与模板
+    mode = request.mode or "template"
+    template_id = request.template_id or request.format_type or "polish"
+    
+    if mode == "template":
+        template_instruction = TEMPLATES.get(template_id, "要求：按照用户的要求对文本进行优化。")
+        system_prompt += f"\n{template_instruction}\n"
+        if request.custom_prompt:
+            system_prompt += f"\n额外附加要求：{request.custom_prompt}\n"
+    else: # mode == "custom"
+        if request.custom_prompt:
+            system_prompt += f"\n用户的自定义要求：{request.custom_prompt}\n"
+        else:
+            system_prompt += "\n要求：按照用户的要求对文本进行优化。\n"
 
     system_prompt += "\n注意：请不要输出任何客套话（如“好的，我正在阅读”、“这就为您生成”等），直接开始输出最终的 Markdown 格式正文。"
 

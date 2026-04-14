@@ -8,9 +8,9 @@
       <p class="text-gray-500 mt-2">管理 InsightGraph 的外观、信息源及同步策略</p>
     </div>
 
-    <el-tabs type="border-card" class="bg-white rounded-xl shadow-sm">
+    <el-tabs v-model="activeTab" type="border-card" class="bg-white rounded-xl shadow-sm">
       <!-- 基础设置 -->
-      <el-tab-pane label="基础设置">
+      <el-tab-pane label="基础设置" name="base" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><Monitor /></el-icon> 外观与基础</span>
         </template>
@@ -44,8 +44,56 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane label="账号设置" name="account">
+        <template #label>
+          <span class="flex items-center gap-2"><el-icon><User /></el-icon> 账号设置</span>
+        </template>
+        <div class="p-6 space-y-8">
+          <el-alert v-if="me.must_change_password" title="当前账号为临时密码状态，请先修改密码后再使用系统功能" type="warning" show-icon :closable="false" />
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-gray-50 border border-gray-100 rounded-xl p-5">
+              <h3 class="text-lg font-bold text-gray-800 mb-4">个人信息</h3>
+              <el-form label-width="84px">
+                <el-form-item label="用户名">
+                  <el-input :model-value="me.username" disabled />
+                </el-form-item>
+                <el-form-item label="昵称">
+                  <el-input v-model="profileForm.display_name" placeholder="例如：张三" />
+                </el-form-item>
+                <el-form-item label="邮箱">
+                  <el-input v-model="profileForm.email" placeholder="name@example.com" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="savingProfile" @click="saveProfile">保存</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-100 rounded-xl p-5">
+              <h3 class="text-lg font-bold text-gray-800 mb-4">修改密码</h3>
+              <el-form label-width="84px">
+                <el-form-item label="旧密码" required>
+                  <el-input v-model="passwordForm.old_password" type="password" show-password />
+                </el-form-item>
+                <el-form-item label="新密码" required>
+                  <el-input v-model="passwordForm.new_password" type="password" show-password />
+                </el-form-item>
+                <el-form-item label="确认密码" required>
+                  <el-input v-model="passwordForm.confirm_password" type="password" show-password />
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" :loading="changingPassword" @click="changePassword">确认修改</el-button>
+                </el-form-item>
+              </el-form>
+              <p class="text-xs text-gray-500 mt-2">修改密码后将强制下线，需要重新登录。</p>
+            </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <!-- 自动同步 -->
-      <el-tab-pane label="信息源与同步">
+      <el-tab-pane label="信息源与同步" name="sync" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><RefreshRight /></el-icon> 自动同步</span>
         </template>
@@ -71,7 +119,7 @@
       </el-tab-pane>
 
       <!-- 信息源管理 -->
-      <el-tab-pane label="信息源管理">
+      <el-tab-pane label="信息源管理" name="sources" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><Link /></el-icon> 信息源管理</span>
         </template>
@@ -105,7 +153,7 @@
       </el-tab-pane>
 
       <!-- 标签管理 -->
-      <el-tab-pane label="标签管理">
+      <el-tab-pane label="标签管理" name="tags" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><CollectionTag /></el-icon> 实体与标签</span>
         </template>
@@ -137,7 +185,7 @@
       </el-tab-pane>
 
       <!-- 笔记分类管理 -->
-      <el-tab-pane label="笔记分类管理">
+      <el-tab-pane label="笔记分类管理" name="categories" :disabled="me.must_change_password">
         <template #label>
           <span class="flex items-center gap-2"><el-icon><FolderOpened /></el-icon> 笔记分类</span>
         </template>
@@ -255,12 +303,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useDark } from '@vueuse/core'
-import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus, FolderOpened } from '@element-plus/icons-vue'
+import { Setting, Monitor, RefreshRight, CollectionTag, InfoFilled, Check, Download, Refresh, Link, Plus, FolderOpened, User } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import axios from 'axios'
 
 const API_BASE = 'http://localhost:8000/api'
+const route = useRoute()
+const router = useRouter()
+const activeTab = ref('base')
 const isDark = useDark()
 
 const isSyncing = ref(false)
@@ -282,6 +334,77 @@ const newCategoryName = ref('')
 const renameCategoryDialogVisible = ref(false)
 const isRenamingCategory = ref(false)
 const categoryToRename = ref({ oldName: '', newName: '' })
+
+const me = ref<any>({
+  username: '',
+  display_name: '',
+  email: '',
+  must_change_password: false
+})
+const profileForm = ref({ display_name: '', email: '' })
+const savingProfile = ref(false)
+const passwordForm = ref({ old_password: '', new_password: '', confirm_password: '' })
+const changingPassword = ref(false)
+
+const fetchMe = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/users/me`)
+    me.value = res.data
+    profileForm.value.display_name = res.data.display_name || ''
+    profileForm.value.email = res.data.email || ''
+    localStorage.setItem('user', JSON.stringify(res.data))
+    if (res.data.must_change_password) {
+      activeTab.value = 'account'
+    }
+  } catch (e) {}
+}
+
+const saveProfile = async () => {
+  savingProfile.value = true
+  try {
+    const res = await axios.put(`${API_BASE}/users/me`, {
+      display_name: profileForm.value.display_name || null,
+      email: profileForm.value.email || null
+    })
+    me.value = res.data
+    localStorage.setItem('user', JSON.stringify(res.data))
+    ElMessage.success('保存成功')
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    savingProfile.value = false
+  }
+}
+
+const changePassword = async () => {
+  if (!passwordForm.value.old_password || !passwordForm.value.new_password) {
+    ElMessage.warning('请填写旧密码和新密码')
+    return
+  }
+  if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  if (passwordForm.value.new_password.length < 8) {
+    ElMessage.warning('新密码至少 8 位')
+    return
+  }
+  changingPassword.value = true
+  try {
+    await axios.post(`${API_BASE}/users/me/change-password`, {
+      old_password: passwordForm.value.old_password,
+      new_password: passwordForm.value.new_password
+    })
+    ElMessage.success('密码修改成功，请重新登录')
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    router.push({ name: 'auth' })
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || '密码修改失败')
+  } finally {
+    changingPassword.value = false
+  }
+}
 
 const fetchSources = async () => {
   loadingSources.value = true
@@ -498,9 +621,14 @@ const handleDeleteCategory = async (category: any) => {
   }
 }
 
-onMounted(() => {
-  fetchTags()
-  fetchSources()
-  fetchCategories()
+onMounted(async () => {
+  const tab = typeof route.query.tab === 'string' ? route.query.tab : ''
+  if (tab) activeTab.value = tab
+  await fetchMe()
+  if (!me.value.must_change_password) {
+    fetchTags()
+    fetchSources()
+    fetchCategories()
+  }
 })
 </script>

@@ -3,9 +3,19 @@ from fastapi.responses import StreamingResponse
 import logging
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
+from urllib.parse import urlparse
+import ipaddress
+import socket
+import re
+from readability import Document
+from bs4 import BeautifulSoup
+import httpx
 
 from app.services.dify_service import dify_client
 from app.core.database import engine, Base, get_db
+from app.api.deps import get_current_active_user
+from app.models.user import User
 from app.models.feed import FeedItem, SourceConfig
 from app.models.graph import GraphNode, GraphEdge
 from app.models.capsule import Capsule
@@ -15,11 +25,26 @@ from app.schemas.capsule import CapsuleCreate
 from app.utils.pdf_parser import fetch_arxiv_pdf_text
 from app.utils.pdf_translator import translate_pdf_with_pdf2zh
 from app.utils.file_parser import parse_file_to_text
-from app.routers import graph, search, chat, daily_note, auth
+from app.routers import graph, search, chat, daily_note, auth, users, admin_users
 from app.services.graph_builder import build_graph_edges_for_node
+from sqlalchemy import text
 
 # 自动创建数据库表（生产环境建议使用 Alembic 迁移）
 Base.metadata.create_all(bind=engine)
+
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER DEFAULT 0"))
+        conn.execute(text("UPDATE users SET is_admin = CASE WHEN username = 'admin' THEN TRUE ELSE FALSE END"))
+        conn.execute(text("UPDATE users SET token_version = 0 WHERE token_version IS NULL"))
+        conn.execute(text("UPDATE users SET must_change_password = FALSE WHERE must_change_password IS NULL"))
+        conn.commit()
+except Exception:
+    pass
 
 # 配置基础日志
 logging.basicConfig(level=logging.INFO)
@@ -73,6 +98,8 @@ app.include_router(search.router)
 app.include_router(chat.router)
 app.include_router(daily_note.router)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(users.router)
+app.include_router(admin_users.router)
 
 # 确保存放 PDF 的目录存在
 os.makedirs("data/pdfs", exist_ok=True)
@@ -141,15 +168,21 @@ async def upload_global_chat_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat/global")
-async def global_chat(req: GlobalChatRequest):
+async def global_chat(req: GlobalChatRequest, current_user: User = Depends(get_current_active_user)):
     """
     提供给前端跨文档全局聊天的流式接口
     """
+    # 确保调用 Dify chat api 带有隔离参数（暂定用 user 字段区分 session，并传入私有 dataset_id）
+    # 注意：在真实的 Dify Chat App 配置中，如果要限定搜索范围，Dify 需要支持在 Chat API 中动态传入 Dataset ID 
+    # 或者为每个用户创建独立的 Chat App。如果目前只用一个全局 Chat App，它可能无法直接隔离。
+    # 临时解决方案：在 Dify Chat API 请求中，尽量注入用户身份标识，或者在 Prompt 中约束。
     return StreamingResponse(
         dify_client.global_chat_stream(
             req.query, 
             req.conversation_id, 
-            [f.dict() for f in req.files] if req.files else []
+            [f.dict() for f in req.files] if req.files else [],
+            user=current_user.username,
+            dataset_id=current_user.dify_private_dataset_id
         ),
         media_type="text/event-stream"
     )
@@ -206,12 +239,12 @@ async def retry_feed_processing(feed_id: int, background_tasks: BackgroundTasks,
     }
 
 @app.post("/api/feed/{feed_id}/save_to_kb")
-async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     前端点击“整合进知识库”按钮时调用此接口。
     将资讯内容发送给 Dify 进行向量化，并更新数据库状态。
     """
-    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id).first()
+    feed_item = db.query(FeedItem).filter(FeedItem.id == feed_id, FeedItem.owner_id == current_user.id).first()
     if not feed_item:
         raise HTTPException(status_code=404, detail="Feed not found")
         
@@ -239,7 +272,7 @@ async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: S
         dify_client.save_text_to_dataset, 
         text_content=content_to_save, 
         title=f"[{feed_item.source}] {feed_item.title}",
-        kb_type="original"
+        dataset_id=current_user.dify_private_dataset_id
     )
     
     # 本地也保存一份 GraphNode 节点数据
@@ -261,7 +294,7 @@ async def save_feed_to_kb(feed_id: int, background_tasks: BackgroundTasks, db: S
     return {"status": "processing", "message": "Sent to Dify for embedding."}
 
 @app.post("/api/knowledge/save")
-async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     通用知识库保存接口，用于保存泛读笔记、精读笔记、闪念胶囊等，并支持分类
     """
@@ -271,7 +304,7 @@ async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: Backg
         dify_client.save_text_to_dataset, 
         text_content=req.content, 
         title=req.title,
-        kb_type=req.kb_type
+        dataset_id=current_user.dify_private_dataset_id
     )
     
     # 本地落库
@@ -279,7 +312,9 @@ async def save_knowledge_node(req: KnowledgeSaveRequest, background_tasks: Backg
         node_type=req.kb_type,
         title=req.title,
         content=req.content,
-        ref_id=req.ref_id
+        ref_id=req.ref_id,
+        owner_id=current_user.id,
+        visibility="private"
     )
     db.add(node)
     
@@ -484,14 +519,16 @@ async def translate_feed(feed_id: int, force_refresh: bool = False, db: Session 
     }
 
 @app.post("/api/capsules")
-async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     创建一条新的闪念胶囊，并自动发送给 Dify 知识库进行向量化。
     """
     # 1. 本地落库保存胶囊记录
     new_capsule = Capsule(
         title=capsule.title,
-        content=capsule.content
+        content=capsule.content,
+        owner_id=current_user.id,
+        visibility=capsule.visibility or "private"
     )
     db.add(new_capsule)
     db.commit()
@@ -502,17 +539,20 @@ async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTas
         node_type="capsule",
         title=capsule.title or f"闪念胶囊 #{new_capsule.id}",
         content=capsule.content,
-        ref_id=new_capsule.id
+        ref_id=new_capsule.id,
+        owner_id=current_user.id,
+        visibility=capsule.visibility or "private"
     )
     db.add(capsule_node)
     db.commit()
 
     # 3. 异步发送给 Dify 向量化和图谱关联
+    dataset_id = current_user.dify_private_dataset_id if capsule.visibility == "private" else os.getenv("DIFY_DATASET_CAPSULE_ID")
     background_tasks.add_task(
         dify_client.save_text_to_dataset,
         text_content=capsule.content,
         title=capsule.title or f"[闪念胶囊] #{new_capsule.id}",
-        kb_type="capsule"
+        dataset_id=dataset_id
     )
     background_tasks.add_task(build_graph_edges_for_node, db, capsule_node.id)
 
@@ -520,9 +560,11 @@ async def create_capsule(capsule: CapsuleCreate, background_tasks: BackgroundTas
 
 @app.post("/api/capsules/upload")
 async def upload_capsule_file(
+    visibility: str = Form("private"),
     file: UploadFile = File(...),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     接收上传的文件，解析为纯文本，并保存为闪念胶囊（暂不涉及 OCR 图片解析）
@@ -534,6 +576,11 @@ async def upload_capsule_file(
         # 如果是图片格式，则调用 Dify 多模态模型进行 OCR 解析
         if file.content_type and file.content_type.startswith('image/'):
             extracted_text = await dify_client.extract_text_from_image(content, filename, file.content_type)
+            # 检查返回结果是否包含明显的错误提示
+            if "请求 Dify OCR 接口失败" in extracted_text or "未配置" in extracted_text:
+                logger.error(f"OCR failed: {extracted_text}")
+                # 虽然 OCR 失败了，但我们可以允许用户依然上传图片本身，只是没有文字内容
+                extracted_text = f"【图片解析失败】\n\n系统提示：您的 Dify OCR 视觉模型配置可能有误或模型不可用。\n错误详情：\n```\n{extracted_text}\n```"
         else:
             # 解析文件内容为文本
             extracted_text = parse_file_to_text(content, filename)
@@ -568,7 +615,9 @@ async def upload_capsule_file(
         title=title,
         content=capsule_content,
         file_url=file_url,
-        file_type=file_type
+        file_type=file_type,
+        owner_id=current_user.id,
+        visibility=visibility
     )
     db.add(new_capsule)
     db.commit()
@@ -579,28 +628,166 @@ async def upload_capsule_file(
         node_type="capsule",
         title=title,
         content=capsule_content,
-        ref_id=new_capsule.id
+        ref_id=new_capsule.id,
+        owner_id=current_user.id,
+        visibility=visibility
     )
     db.add(capsule_node)
     db.commit()
 
     # 3. 发送给 Dify
+    dataset_id = current_user.dify_private_dataset_id if visibility == "private" else os.getenv("DIFY_DATASET_CAPSULE_ID")
     background_tasks.add_task(
         dify_client.save_text_to_dataset,
         text_content=capsule_content,
         title=title,
-        kb_type="capsule"
+        dataset_id=dataset_id
     )
     background_tasks.add_task(build_graph_edges_for_node, db, capsule_node.id)
 
     return {"status": "success", "id": new_capsule.id, "message": f"文件 {filename} 已成功解析并入库。"}
+class UrlRequest(BaseModel):
+    url: str
+    visibility: str = "private"
+
+def _is_allowed_visibility(value: str) -> bool:
+    return value in ("private", "public")
+
+def _is_public_ip(ip_str: str) -> bool:
+    ip = ipaddress.ip_address(ip_str)
+    # Allow 198.18.x.x because Fake-IP proxies (like Surge/Clash) use this range for public domains
+    if ip.version == 4 and str(ip).startswith("198.18."):
+        return True
+    return not (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+def _is_public_host(host: str) -> bool:
+    print(f"DEBUG: checking host {host}")
+    if not host:
+        return False
+    if host.lower() in ("localhost",):
+        return False
+    try:
+        res = _is_public_ip(host)
+        print(f"DEBUG: _is_public_ip({host}) returned {res}")
+        return res
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None)
+            print(f"DEBUG: socket.getaddrinfo returned {infos}")
+        except Exception as e:
+            print(f"DEBUG: socket.getaddrinfo threw {e}")
+            return False
+        ips = {info[4][0] for info in infos if info and info[4]}
+        print(f"DEBUG: parsed ips: {ips}")
+        if not ips:
+            return False
+        
+        for ip in ips:
+            print(f"DEBUG: checking ip {ip}: {_is_public_ip(ip)}")
+            
+        res = all(_is_public_ip(ip) for ip in ips)
+        print(f"DEBUG: final result for {host}: {res}")
+        return res
+
+async def _fetch_and_extract_readable_text(url: str) -> tuple[str, str]:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+    async with httpx.AsyncClient(headers=headers, follow_redirects=True, timeout=20.0) as client:
+        res = await client.get(url)
+    if res.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"链接抓取失败：HTTP {res.status_code}")
+    content_type = (res.headers.get("content-type") or "").lower()
+    if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
+        raise HTTPException(status_code=400, detail=f"链接内容不是网页 HTML（content-type: {content_type or 'unknown'}）")
+    raw = res.content
+    if len(raw) > 2_000_000:
+        raw = raw[:2_000_000]
+    html = raw.decode(res.encoding or "utf-8", errors="ignore")
+    doc = Document(html)
+    title = (doc.short_title() or "").strip()
+    summary_html = doc.summary(html_partial=True)
+    soup = BeautifulSoup(summary_html, "lxml")
+    text = soup.get_text("\n", strip=True)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="未能从网页中提取到有效正文内容")
+    if not title:
+        title = url
+    return title, text
+
+@app.post("/api/capsules/url")
+async def extract_url_to_capsule(
+    payload: UrlRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    接收一个 URL，通过爬虫提取其网页正文，并保存为胶囊
+    """
+    url = (payload.url or "").strip()
+    if not _is_allowed_visibility(payload.visibility):
+        raise HTTPException(status_code=400, detail="visibility 仅支持 private 或 public")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="仅支持 http/https 链接")
+    if not _is_public_host(parsed.hostname or ""):
+        raise HTTPException(status_code=400, detail="出于安全考虑，暂不支持抓取内网/本机地址")
+
+    page_title, extracted_text = await _fetch_and_extract_readable_text(url)
+    title = f"网页剪藏: {page_title}"
+    capsule_content = f"【链接】{url}\n\n{extracted_text}"
+
+    # 1. 本地落库
+    new_capsule = Capsule(
+        title=title,
+        content=capsule_content,
+        owner_id=current_user.id,
+        visibility=payload.visibility
+    )
+    db.add(new_capsule)
+    db.commit()
+    db.refresh(new_capsule)
+    
+    # 2. 生成 GraphNode
+    capsule_node = GraphNode(
+        node_type="capsule",
+        title=title,
+        content=capsule_content,
+        ref_id=new_capsule.id,
+        owner_id=current_user.id,
+        visibility=payload.visibility
+    )
+    db.add(capsule_node)
+    db.commit()
+
+    # 3. 发送给 Dify
+    dataset_id = current_user.dify_private_dataset_id if payload.visibility == "private" else os.getenv("DIFY_DATASET_CAPSULE_ID")
+    background_tasks.add_task(
+        dify_client.save_text_to_dataset,
+        text_content=capsule_content,
+        title=title,
+        dataset_id=dataset_id
+    )
+    background_tasks.add_task(build_graph_edges_for_node, db, capsule_node.id)
+
+    return {"status": "success", "id": new_capsule.id, "message": "链接已收录。"}
 
 @app.get("/api/capsules")
-async def list_capsules(skip: int = 0, limit: int = 50, keyword: str = None, db: Session = Depends(get_db)):
+async def list_capsules(skip: int = 0, limit: int = 50, keyword: str = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     获取所有的闪念胶囊列表（支持搜索和分页）
     """
-    query = db.query(Capsule)
+    query = db.query(Capsule).filter(Capsule.owner_id == current_user.id)
     if keyword:
         query = query.filter(Capsule.content.ilike(f"%{keyword}%") | Capsule.title.ilike(f"%{keyword}%"))
     
@@ -612,11 +799,11 @@ async def list_capsules(skip: int = 0, limit: int = 50, keyword: str = None, db:
     }
 
 @app.put("/api/capsules/{capsule_id}")
-async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     更新闪念胶囊的内容，并同步更新知识图谱节点及 Dify 知识库
     """
-    capsule = db.query(Capsule).filter(Capsule.id == capsule_id).first()
+    capsule = db.query(Capsule).filter(Capsule.id == capsule_id, Capsule.owner_id == current_user.id).first()
     if not capsule:
         raise HTTPException(status_code=404, detail="Capsule not found")
         
@@ -627,7 +814,7 @@ async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tas
     db.commit()
     
     # Update GraphNode
-    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule').first()
+    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule', GraphNode.owner_id == current_user.id).first()
     if node:
         node.content = payload.content
         if payload.title is not None:
@@ -636,10 +823,8 @@ async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tas
         
     # Update Dify Knowledge Base
     if getattr(capsule, 'dify_document_id', None):
-        from app.services.dify_service import DifyService
         import os
-        dify_client = DifyService()
-        dataset_id = os.getenv("DIFY_DATASET_CAPSULE_ID")
+        dataset_id = current_user.dify_private_dataset_id
         if dataset_id:
             # First delete the old document
             background_tasks.add_task(
@@ -648,10 +833,10 @@ async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tas
                 capsule.dify_document_id
             )
             # Then add the new content as a new document and update the dify_document_id
-            def update_dify_doc(capsule_id, content, dataset_id):
+            async def update_dify_doc(capsule_id, content, dataset_id):
                 try:
                     from app.core.database import get_db
-                    new_doc_id = dify_client.save_text_to_dataset(content, dataset_id)
+                    new_doc_id = await dify_client.save_text_to_dataset(content, dataset_id)
                     if new_doc_id:
                         db_gen = get_db()
                         db_session = next(db_gen)
@@ -670,16 +855,16 @@ async def update_capsule(capsule_id: int, payload: CapsuleCreate, background_tas
     return {"status": "success", "message": "Capsule updated successfully"}
 
 @app.delete("/api/capsules/{capsule_id}")
-async def delete_capsule(capsule_id: int, db: Session = Depends(get_db)):
+async def delete_capsule(capsule_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     """
     删除闪念胶囊，并级联删除相关的知识图谱节点与关联边
     """
-    capsule = db.query(Capsule).filter(Capsule.id == capsule_id).first()
+    capsule = db.query(Capsule).filter(Capsule.id == capsule_id, Capsule.owner_id == current_user.id).first()
     if not capsule:
         raise HTTPException(status_code=404, detail="Capsule not found")
         
     # Delete GraphNode and Edges
-    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule').first()
+    node = db.query(GraphNode).filter(GraphNode.ref_id == str(capsule_id), GraphNode.node_type == 'capsule', GraphNode.owner_id == current_user.id).first()
     if node:
         db.query(GraphEdge).filter((GraphEdge.source_node_id == node.id) | (GraphEdge.target_node_id == node.id)).delete()
         db.delete(node)
@@ -720,11 +905,26 @@ async def n8n_report_webhook(request: Request, background_tasks: BackgroundTasks
         if action_type == "save_to_knowledge_base" and content_to_save:
             logger.info("Triggering background task to save report to Dify Knowledge Base.")
             # 使用后台任务异步保存，避免飞书 Webhook 等待超时
-            background_tasks.add_task(
-                dify_client.save_text_to_dataset, 
-                text_content=content_to_save, 
-                title="InsightGraph 每日追踪早报入库"
-            )
+            
+            # Fetch admin user to use their dataset for webhooks
+            from app.core.database import get_db
+            db_gen = get_db()
+            db_session = next(db_gen)
+            admin_dataset_id = None
+            try:
+                admin_user = db_session.query(User).filter(User.username == 'admin').first()
+                if admin_user:
+                    admin_dataset_id = admin_user.dify_private_dataset_id
+            finally:
+                next(db_gen, None)
+                
+            if admin_dataset_id:
+                background_tasks.add_task(
+                    dify_client.save_text_to_dataset, 
+                    text_content=content_to_save, 
+                    title="InsightGraph 每日追踪早报入库",
+                    dataset_id=admin_dataset_id
+                )
             return {"status": "processing", "message": "Save to knowledge base initiated"}
         else:
             return {"status": "ignored", "message": "No valid action found"}

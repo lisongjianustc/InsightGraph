@@ -236,6 +236,7 @@
           <div class="absolute bottom-2 left-2">
             <el-upload
               :action="`${API_BASE}/chat/upload`"
+              :headers="authHeaders"
               :show-file-list="false"
               :on-success="handleUploadSuccess"
               :on-error="handleUploadError"
@@ -307,6 +308,10 @@ const userInput = ref('')
 const isTyping = ref(false)
 const isUploading = ref(false)
 const uploadedFiles = ref<{id: string, type: string, name: string}[]>([])
+
+const authHeaders = {
+  Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+}
 const chatScrollRef = ref<HTMLElement | null>(null)
 
 // 用于控制流式请求的中断
@@ -649,9 +654,15 @@ const sendMessage = async () => {
   abortController = new AbortController()
 
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem('token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
     const response = await fetch(`${API_BASE}/chat/global`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         query: query,
         conversation_id: difyConversationId.value,

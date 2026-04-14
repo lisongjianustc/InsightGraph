@@ -47,16 +47,16 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-# 在后台启动 npm run dev，并将日志重定向到文件
-echo "🖥️  前端服务启动中... (可通过 http://localhost:5173 访问)"
-npm run dev > ../frontend_dev.log 2>&1 &
+# 在后台启动 electron:serve，并将日志重定向到文件
+echo "🖥️  前端与桌面端服务启动中... (前端服务将运行在 http://localhost:5555)"
+npm run electron:serve > ../frontend_dev.log 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > ../.frontend_pid
 
 echo "====================================="
 echo "✨ 启动完成！"
 echo "👉 后端 API 地址: http://localhost:8000"
-echo "👉 前端访问地址: http://localhost:5173"
+echo "👉 前端访问地址: http://localhost:5555"
 echo "👉 n8n 工作流: http://localhost:5678"
 echo "====================================="
-echo "如果前端页面无法访问，请查看项目根目录下的 frontend_dev.log 文件"
+echo "桌面端 App 应该已经弹出。如果无法启动，请查看项目根目录下的 frontend_dev.log 文件"
