@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document, Loading, Link, Edit, Switch, Check } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, SwitchButton, Search, Folder, FolderOpened, Document, Loading, Link } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 // @ts-ignore

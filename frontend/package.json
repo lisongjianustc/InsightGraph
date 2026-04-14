@@ -1,7 +1,7 @@
 {
   "name": "insight-graph-desktop",
   "private": true,
-  "version": "1.0.2",
+  "version": "2.0.0",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -18,13 +18,17 @@
       "output": "dist_electron"
     },
     "mac": {
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
-      "target": ["zip"]
+      "target": [
+        "zip"
+      ]
     },
     "win": {
-      "icon": "build/icon.png",
-      "target": ["nsis"]
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis"
+      ]
     },
     "files": [
       "dist/**/*",

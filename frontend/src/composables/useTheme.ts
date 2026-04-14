@@ -1,4 +1,4 @@
-import { ref, watch, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useDark } from '@vueuse/core'
 
 export type ThemeType = 'default' | 'forest' | 'latte' | 'geek' | 'apple'
@@ -17,16 +17,10 @@ export function useTheme() {
 
   const applyTheme = (theme: ThemeType) => {
     const html = document.documentElement
-    // Remove all existing theme classes
     html.classList.remove('theme-forest', 'theme-latte', 'theme-geek', 'theme-apple')
     
     if (theme !== 'default') {
       html.classList.add(`theme-${theme}`)
-    }
-    
-    // Geek theme forces dark mode visually, but we might just let it be handled by CSS
-    if (theme === 'geek') {
-      // isDark.value = true // Optional: force dark mode toggle
     }
   }
 

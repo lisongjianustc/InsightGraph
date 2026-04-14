@@ -75,6 +75,11 @@ frontend_dev.log
 frontend/dist_electron/
 frontend/process_icon.py
 frontend/raw_icon.png
+!frontend/build/
+!frontend/build/icon.icns
+!frontend/build/icon.ico
+!frontend/build/icon.iconset/
+!frontend/build/icon.iconset/*
 
 # IDE / Editor
 .idea/
