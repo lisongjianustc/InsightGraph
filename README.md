@@ -16,6 +16,12 @@
 
 <br/>
 
+<div align="center">
+  <img src="doc/images/架构图.png" width="800" alt="整体架构图">
+</div>
+
+<br/>
+
 > **不再让你的知识成为信息孤岛。**
 > 在 InsightGraph 里，每一篇论文、每一个截屏、每一闪而过的灵感，都将自动凝结成知识图谱中熠熠生辉的星辰，并随时等待你的召唤。通过前沿大模型与本地知识库的深度融合，InsightGraph 实现了从“信息收集”到“知识内化”的无缝闭环。
 
@@ -146,8 +152,6 @@
 ## 🛠 技术架构与生态树 (Tech Stack & Ecosystem)
 
 <div align="center">
-  <img src="doc/images/架构图.png" width="800" alt="整体架构图">
-  <br/>
   <img src="doc/images/极简解偶架构.png" width="800" alt="极简解耦架构" style="margin-top: 20px;">
 </div>
 
