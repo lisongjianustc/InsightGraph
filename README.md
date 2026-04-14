@@ -39,8 +39,9 @@
 
 ### 📡 知识发现 (Auto-Feed & Skim Reading)
 <div align="center">
-  <img src="doc/images/知识发现.png" width="600" alt="知识发现">
+  <img src="doc/images/知识发现.png" width="800" alt="知识发现">
 </div>
+
 
 - **🤖 全自动信息聚合**：基于 APScheduler 定时扫描 arXiv 前沿论文或 RSS 订阅源。
 - **⚡ 一键泛读摘要**：调用 Dify 大模型，数秒内将万字长文提炼为 **3 个核心要点 (Key Takeaways)**，实现一目十行的极速初筛。
@@ -48,8 +49,9 @@
 
 ### ⚡️ 闪念胶囊 (Multi-Modal Capsules)
 <div align="center">
-  <img src="doc/images/闪念胶囊理念.png" width="600" alt="闪念胶囊理念">
+  <img src="doc/images/闪念胶囊理念.png" width="800" alt="闪念胶囊理念">
 </div>
+
 
 - **✍️ 所见即所得的极客编辑**：基于 ByteMD 打造的 Typora 级体验，支持 GitHub 风格语法、代码高亮与 LaTeX 公式实时渲染。
 - **📎 全能文档解析**：支持将 **PDF、Word、Excel、PPT** 直接拖入入库。
@@ -57,8 +59,9 @@
 
 ### 📅 每日笔记与块级引用 (Daily Notes & Block Reference)
 <div align="center">
-  <img src="doc/images/每日笔记与人工智能协同.png" width="600" alt="每日笔记与人工智能协同">
+  <img src="doc/images/每日笔记与人工智能协同.png" width="800" alt="每日笔记与人工智能协同">
 </div>
+
 
 - **🧠 AI 魔法重写 (AI Writer)**：沉浸式日记写作，支持 `[[capsule:id]]` 双链语法。AI 会自动读取原文数万字的 PDF 上下文，辅助您进行深度创作。
   - **双模式驱动**：支持“模板模式”与“完全自定义模式”。
@@ -73,8 +76,9 @@
 
 ### 🌌 动态知识图谱 (Knowledge Graph)
 <div align="center">
-  <img src="doc/images/动态知识图谱概念.png" width="600" alt="动态知识图谱概念">
+  <img src="doc/images/动态知识图谱概念.png" width="800" alt="动态知识图谱概念">
 </div>
+
 
 - **🧠 概念级高维聚类**：剔除无意义的连线，仅展示由 LLM 自动抽取的“核心专业概念”节点。
 - **🔗 万物引力连线**：文献、闪念胶囊、每日笔记通过相同的手动或自动 Tag 自动聚拢，形成网状结构的跨模态知识图谱。
@@ -82,8 +86,9 @@
 
 ### 🤖 跨源全局问答 (Global Chat)
 <div align="center">
-  <img src="doc/images/全局问答理念.png" width="600" alt="全局问答理念">
+  <img src="doc/images/全局问答理念.png" width="800" alt="全局问答理念">
 </div>
+
 
 - **💬 打通数据孤岛**：专属全局 Chatbot 穿透你的“原文库”、“精读库”和“闪念胶囊库”。
 - **⚡ 流式多模态交互**：极致流畅的 SSE 打字机响应，支持带附件/图文上传提问。
@@ -91,8 +96,9 @@
 
 ### 💻 跨平台桌面端体验 (Desktop App)
 <div align="center">
-  <img src="doc/images/桌面体验.png" width="600" alt="桌面体验">
+  <img src="doc/images/桌面体验.png" width="800" alt="桌面体验">
 </div>
+
 
 - **🍏 原生级桌面应用**：基于 Electron 打包，告别浏览器标签页的束缚，享受纯粹、免干扰的第二大脑沉浸感。
 - **🪟 独立窗口管理**：原生 PDF 独立窗口渲染、专属 Dock 图标、极致优雅的 UI 交互。
